@@ -1,11 +1,15 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0" />
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"/>
+  <meta name="apple-mobile-web-app-capable" content="yes"/>
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"/>
+  <meta name="apple-mobile-web-app-title" content="IRONFORM"/>
+  <meta name="theme-color" content="#1c1208"/>
   <title>IRONFORM</title>
-  <link rel="preconnect" href="https://fonts.googleapis.com" />
-  <link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=DM+Sans:wght@400;600;700;800;900&display=swap" rel="stylesheet" />
+  <link rel="preconnect" href="https://fonts.googleapis.com"/>
+  <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@700;900&family=DM+Mono:wght@400;500&family=DM+Sans:wght@400;500;600;700&display=swap" rel="stylesheet"/>
   <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
@@ -15,19 +19,74 @@
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
     html, body, #root { height: 100%; }
-    body { background: #0a0a0f; color: #f0f0e8; font-family: 'DM Sans', sans-serif; -webkit-font-smoothing: antialiased; }
+
+    /* ── VINTAGE MIDCENTURY PALETTE ──────────────────────────────
+       Warm parchment backgrounds, tobacco brown, brick red,
+       harvest gold, forest green, off-white typewriter text.
+       Inspiration: 1950s gym posters, weight room chalkboards,
+       vintage health club membership cards.
+    ─────────────────────────────────────────────────────────── */
+    :root {
+      --bg:        #1c1208;   /* deep tobacco */
+      --bg2:       #241a0a;   /* dark walnut */
+      --surface:   #2e2010;   /* worn leather */
+      --surface2:  #3a2c14;   /* aged oak */
+      --border:    #5a3e20;   /* saddle brown */
+      --border2:   #7a5530;   /* lighter saddle */
+      --gold:      #c8922a;   /* harvest gold */
+      --gold2:     #e8b84b;   /* lighter gold */
+      --cream:     #f0e6cc;   /* parchment */
+      --cream2:    #d4c4a0;   /* aged cream */
+      --muted:     #8a7055;   /* faded ink */
+      --brick:     #c44b2b;   /* brick red */
+      --brick2:    #e06040;   /* lighter brick */
+      --green:     #4a7c59;   /* forest green */
+      --green2:    #6aa87a;   /* sage */
+      --blue:      #4a6c8c;   /* slate blue */
+      --blue2:     #6a90b8;   /* lighter slate */
+    }
+
+    body {
+      background: var(--bg);
+      color: var(--cream);
+      font-family: 'DM Sans', sans-serif;
+      -webkit-font-smoothing: antialiased;
+    }
     input, select, button, textarea { font-family: inherit; }
-    select option { background: #1a1a2e; color: #f0f0e8; }
-    ::-webkit-scrollbar { width: 4px; }
+    select option { background: var(--surface2); color: var(--cream); }
+    ::-webkit-scrollbar { width: 3px; }
     ::-webkit-scrollbar-track { background: transparent; }
-    ::-webkit-scrollbar-thumb { background: rgba(232,255,107,0.2); border-radius: 2px; }
+    ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
     * { -webkit-tap-highlight-color: transparent; }
+
+    /* Textured paper overlay */
+    body::before {
+      content: '';
+      position: fixed;
+      inset: 0;
+      background-image:
+        url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='300' height='300'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.65' numOctaves='3' stitchTiles='stitch'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3C/filter%3E%3Crect width='300' height='300' filter='url(%23noise)' opacity='0.04'/%3E%3C/svg%3E");
+      pointer-events: none;
+      z-index: 1000;
+      opacity: 0.5;
+    }
+
+    /* Stamp / letterpress effect for labels */
+    .stamp {
+      font-family: 'DM Mono', monospace;
+      font-size: 10px;
+      letter-spacing: 3px;
+      text-transform: uppercase;
+      color: var(--muted);
+    }
+    .display-font { font-family: 'Playfair Display', serif; }
+    .mono { font-family: 'DM Mono', monospace; }
   </style>
 </head>
 <body>
   <div id="root"></div>
   <script type="text/babel">
-    const { useState, useEffect, useRef } = React;
+    const { useState, useEffect, useRef, useCallback } = React;
 
     // ── FIREBASE CONFIG ───────────────────────────────────────────
     const FIREBASE_CONFIG = {
@@ -46,14 +105,17 @@
     const gProvider = new firebase.auth.GoogleAuthProvider();
     auth.setPersistence(firebase.auth.Auth.Persistence.LOCAL);
 
-    const fbGetProfile   = async (uid) => { const d = await db.collection("users").doc(uid).get(); return d.exists ? d.data() : null; };
-    const fbSetProfile   = async (uid, data) => db.collection("users").doc(uid).set(data, {merge:true});
-    const fbGetWorkouts  = async (uid) => { const s = await db.collection("users").doc(uid).collection("workouts").orderBy("date").get(); return s.docs.map(d=>({...d.data(),_id:d.id})); };
-    const fbAddWorkout   = async (uid, w) => { const r = await db.collection("users").doc(uid).collection("workouts").add(w); return r.id; };
-    const fbGetCustomExs = async (uid) => { const s = await db.collection("users").doc(uid).collection("customExercises").get(); return s.docs.map(d=>({...d.data(),_fid:d.id})); };
-    const fbAddCustomEx  = async (uid, ex) => { const r = await db.collection("users").doc(uid).collection("customExercises").add(ex); return r.id; };
+    const fbGetProfile    = async (uid) => { const d=await db.collection("users").doc(uid).get(); return d.exists?d.data():null; };
+    const fbSetProfile    = async (uid,data) => db.collection("users").doc(uid).set(data,{merge:true});
+    const fbGetWorkouts   = async (uid) => { const s=await db.collection("users").doc(uid).collection("workouts").orderBy("date").get(); return s.docs.map(d=>({...d.data(),_id:d.id})); };
+    const fbAddWorkout    = async (uid,w) => { const r=await db.collection("users").doc(uid).collection("workouts").add(w); return r.id; };
+    const fbGetCustomExs  = async (uid) => { const s=await db.collection("users").doc(uid).collection("customExercises").get(); return s.docs.map(d=>({...d.data(),_fid:d.id})); };
+    const fbAddCustomEx   = async (uid,ex) => { const r=await db.collection("users").doc(uid).collection("customExercises").add(ex); return r.id; };
+    const fbGetLiftGoals  = async (uid) => { const s=await db.collection("users").doc(uid).collection("liftGoals").get(); return s.docs.map(d=>({...d.data(),_id:d.id})); };
+    const fbAddLiftGoal   = async (uid,g) => { const r=await db.collection("users").doc(uid).collection("liftGoals").add(g); return r.id; };
+    const fbDelLiftGoal   = async (uid,id) => db.collection("users").doc(uid).collection("liftGoals").doc(id).delete();
 
-    // ── EXERCISES ─────────────────────────────────────────────────
+    // ── DATA ──────────────────────────────────────────────────────
     const BUILTIN_EXERCISES = [
       {id:"bench",            name:"Bench Press",                      category:"Chest",     unit:"lbs", defaultWeight:115,    increment:5},
       {id:"decline_press",    name:"Decline Press",                    category:"Chest",     unit:"lbs", defaultWeight:65,     increment:5},
@@ -94,40 +156,65 @@
     const CATEGORIES = ["Chest","Back","Legs","Shoulders","Arms","Core","Cardio","Other"];
 
     const GOALS = {
-      strength:    {label:"Strength",     increment:1.05,  description:"Heavier weight, lower reps"},
+      strength:    {label:"Strength",     increment:1.05,  description:"Heavy weight, low reps"},
       hypertrophy: {label:"Muscle Growth",increment:1.025, description:"Moderate weight, higher reps"},
-      endurance:   {label:"Endurance",    increment:1.015, description:"Lighter weight, high reps"},
-      maintain:    {label:"Maintain",     increment:1.0,   description:"Keep current level"},
+      endurance:   {label:"Endurance",    increment:1.015, description:"Light weight, high reps"},
+      maintain:    {label:"Maintain",     increment:1.0,   description:"Hold current level"},
     };
     const GOAL_SETS = {
-      strength:    {sets:5, reps:5},
-      hypertrophy: {sets:4, reps:10},
-      endurance:   {sets:3, reps:15},
-      maintain:    {sets:3, reps:8},
+      strength:    {sets:5,reps:5},
+      hypertrophy: {sets:4,reps:10},
+      endurance:   {sets:3,reps:15},
+      maintain:    {sets:3,reps:8},
     };
 
     const WORKOUT_TEMPLATES = [
-      {id:"push", label:"Push Day", emoji:"💪", color:"#e8ff6b", colorBg:"rgba(232,255,107,0.08)", colorBorder:"rgba(232,255,107,0.35)",
+      {id:"push",label:"Push Day",emoji:"💪",accent:"#c8922a",accentDim:"rgba(200,146,42,0.12)",accentBorder:"rgba(200,146,42,0.4)",
         exercises:["bench","incline_db_press","cable_fly","lateral_raise","oh_db_press","tricep_rope","assisted_dip"]},
-      {id:"pull", label:"Pull Day", emoji:"🏋️", color:"#7ec8ff", colorBg:"rgba(126,200,255,0.08)", colorBorder:"rgba(126,200,255,0.35)",
+      {id:"pull",label:"Pull Day",emoji:"🏋️",accent:"#4a6c8c",accentDim:"rgba(74,108,140,0.15)",accentBorder:"rgba(74,108,140,0.45)",
         exercises:["lat_pulldown","seated_cable_row","single_arm_row","preacher_curl","rope_hammer_curl"]},
-      {id:"legs", label:"Leg Day",  emoji:"🦵", color:"#ff9f6b", colorBg:"rgba(255,159,107,0.08)", colorBorder:"rgba(255,159,107,0.35)",
+      {id:"legs",label:"Leg Day",emoji:"🦵",accent:"#c44b2b",accentDim:"rgba(196,75,43,0.12)",accentBorder:"rgba(196,75,43,0.4)",
         exercises:["squat","rdl","leg_press","calf_raise","glute_drive","hip_adduction","leg_curl"]},
     ];
 
     function safeProgressWeight(current, goal, weeksSince, unit) {
       if (goal==="maintain") return current;
-      const factor = Math.pow(GOALS[goal].increment, weeksSince||1);
-      const proposed = Math.round((current*factor)/2.5)*2.5;
-      const maxInc = ({lbs:10,reps:2}[unit]||5)*(weeksSince||1);
+      const factor=Math.pow(GOALS[goal].increment, weeksSince||1);
+      const proposed=Math.round((current*factor)/2.5)*2.5;
+      const maxInc=({lbs:10,reps:2}[unit]||5)*(weeksSince||1);
       return Math.min(proposed, current+maxInc);
     }
 
-    // ── SHARED UI ─────────────────────────────────────────────────
+    // ── LIFT GOAL PROJECTION ──────────────────────────────────────
+    function projectGoalDate(history, targetWeight) {
+      // history: [{date, weight}] sorted ascending
+      if (history.length < 2) return null;
+      // Linear regression on weight over time
+      const t0 = new Date(history[0].date).getTime();
+      const xs = history.map(h=>(new Date(h.date).getTime()-t0)/86400000); // days since first
+      const ys = history.map(h=>h.weight);
+      const n  = xs.length;
+      const sx = xs.reduce((a,x)=>a+x,0);
+      const sy = ys.reduce((a,y)=>a+y,0);
+      const sxy= xs.reduce((a,x,i)=>a+x*ys[i],0);
+      const sxx= xs.reduce((a,x)=>a+x*x,0);
+      const denom = n*sxx - sx*sx;
+      if (Math.abs(denom)<0.001) return null;
+      const slope = (n*sxy - sx*sy)/denom;
+      if (slope<=0) return null; // no upward trend
+      const intercept = (sy - slope*sx)/n;
+      // days until target
+      const daysNeeded = (targetWeight - intercept)/slope;
+      const targetDate = new Date(t0 + daysNeeded*86400000);
+      if (targetDate < new Date()) return "already achieved!";
+      return targetDate;
+    }
+
+    // ── SHARED COMPONENTS ─────────────────────────────────────────
     function Modal({children, onClose}) {
       return (
-        <div onClick={onClose} style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.85)",zIndex:500,display:"flex",alignItems:"flex-end",justifyContent:"center"}}>
-          <div onClick={e=>e.stopPropagation()} style={{background:"#111118",border:"1px solid rgba(232,255,107,0.15)",borderRadius:"20px 20px 0 0",width:"100%",maxWidth:480,maxHeight:"90vh",overflowY:"auto",padding:24,paddingBottom:40}}>
+        <div onClick={onClose} style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.8)",zIndex:500,display:"flex",alignItems:"flex-end",justifyContent:"center"}}>
+          <div onClick={e=>e.stopPropagation()} style={{background:"#2a1c0c",border:"1px solid var(--border2)",borderRadius:"16px 16px 0 0",width:"100%",maxWidth:480,maxHeight:"90vh",overflowY:"auto",padding:24,paddingBottom:44}}>
             {children}
           </div>
         </div>
@@ -136,22 +223,58 @@
 
     function BackBtn({onClick, label="Home"}) {
       return (
-        <button onClick={onClick} style={{background:"none",border:"none",color:"#666",cursor:"pointer",display:"flex",alignItems:"center",gap:6,fontFamily:"'Space Mono',monospace",fontSize:11,letterSpacing:1,padding:"0 0 20px 0"}}>
-          ← {label.toUpperCase()}
+        <button onClick={onClick} style={{background:"none",border:"none",color:"var(--muted)",cursor:"pointer",display:"flex",alignItems:"center",gap:6,fontFamily:"'DM Mono',monospace",fontSize:11,letterSpacing:2,padding:"0 0 18px 0",textTransform:"uppercase"}}>
+          ← {label}
         </button>
       );
     }
 
     function Stepper({value, onChange, min=1, label}) {
       return (
-        <div style={{display:"flex",flexDirection:"column",alignItems:"center",gap:6}}>
-          <span style={{fontSize:9,letterSpacing:2,color:"#888",fontFamily:"'Space Mono',monospace"}}>{label}</span>
-          <div style={{display:"flex",alignItems:"center",gap:8}}>
-            <button onClick={()=>onChange(Math.max(min, value-1))} style={{width:32,height:32,borderRadius:8,border:"1px solid rgba(232,255,107,0.2)",background:"transparent",color:"#e8ff6b",fontSize:18,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center"}}>−</button>
-            <span style={{fontFamily:"'Space Mono',monospace",fontSize:20,fontWeight:700,color:"#f0f0e8",minWidth:28,textAlign:"center"}}>{value}</span>
-            <button onClick={()=>onChange(value+1)} style={{width:32,height:32,borderRadius:8,border:"1px solid rgba(232,255,107,0.2)",background:"transparent",color:"#e8ff6b",fontSize:18,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center"}}>+</button>
+        <div style={{display:"flex",flexDirection:"column",alignItems:"center",gap:8}}>
+          <span style={{fontFamily:"'DM Mono',monospace",fontSize:9,letterSpacing:3,color:"var(--muted)",textTransform:"uppercase"}}>{label}</span>
+          <div style={{display:"flex",alignItems:"center",gap:10}}>
+            <button onClick={()=>onChange(Math.max(min,value-1))} style={{width:34,height:34,borderRadius:6,border:"1px solid var(--border2)",background:"var(--surface)",color:"var(--gold)",fontSize:18,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center"}}>−</button>
+            <span style={{fontFamily:"'DM Mono',monospace",fontSize:22,fontWeight:500,color:"var(--cream)",minWidth:32,textAlign:"center"}}>{value}</span>
+            <button onClick={()=>onChange(value+1)} style={{width:34,height:34,borderRadius:6,border:"1px solid var(--border2)",background:"var(--surface)",color:"var(--gold)",fontSize:18,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center"}}>+</button>
           </div>
         </div>
+      );
+    }
+
+    // Inline SVG line chart — no external lib needed
+    function MiniChart({history, targetWeight, width=300, height=120}) {
+      if (history.length<1) return <div style={{color:"var(--muted)",fontSize:12,textAlign:"center",padding:20}}>No data yet</div>;
+      const t0=new Date(history[0].date).getTime();
+      const tNow=Date.now();
+      const projDate=history.length>=2?projectGoalDate(history,targetWeight):null;
+      const tEnd=projDate&&projDate instanceof Date?Math.max(projDate.getTime(),tNow+7*86400000):tNow+30*86400000;
+      const allW=[...history.map(h=>h.weight),targetWeight];
+      const minW=Math.min(...allW)*0.95, maxW=Math.max(...allW)*1.02;
+      const tx=t=>(t-t0)/(tEnd-t0)*width;
+      const ty=w=>height-(w-minW)/(maxW-minW)*height;
+      const pts=history.map(h=>`${tx(new Date(h.date).getTime())},${ty(h.weight)}`).join(" ");
+      // Projection line from last point to target
+      const lastH=history[history.length-1];
+      const projLine=projDate&&projDate instanceof Date?
+        `M${tx(new Date(lastH.date).getTime())},${ty(lastH.weight)} L${tx(projDate.getTime())},${ty(targetWeight)}`:null;
+
+      return (
+        <svg viewBox={`0 0 ${width} ${height}`} style={{width:"100%",height:height,overflow:"visible"}}>
+          {/* Target line */}
+          <line x1="0" y1={ty(targetWeight)} x2={width} y2={ty(targetWeight)} stroke="var(--green2)" strokeWidth="1" strokeDasharray="4,3" opacity="0.6"/>
+          <text x={width-2} y={ty(targetWeight)-4} textAnchor="end" fontSize="9" fill="var(--green2)" fontFamily="DM Mono,monospace">{targetWeight} lbs</text>
+          {/* Actual path */}
+          {history.length>1&&<polyline points={pts} fill="none" stroke="var(--gold)" strokeWidth="2.5" strokeLinejoin="round" strokeLinecap="round"/>}
+          {/* Projection dashed */}
+          {projLine&&<path d={projLine} fill="none" stroke="var(--gold2)" strokeWidth="1.5" strokeDasharray="5,4" opacity="0.7"/>}
+          {/* Data dots */}
+          {history.map((h,i)=>(
+            <circle key={i} cx={tx(new Date(h.date).getTime())} cy={ty(h.weight)} r="3.5" fill="var(--gold)" stroke="var(--bg2)" strokeWidth="1.5"/>
+          ))}
+          {/* Current "now" vertical */}
+          <line x1={tx(tNow)} y1="0" x2={tx(tNow)} y2={height} stroke="var(--cream2)" strokeWidth="0.5" opacity="0.3"/>
+        </svg>
       );
     }
 
@@ -162,6 +285,7 @@
       const [profile,       setProfileS]      = useState(null);
       const [workouts,      setWorkouts]      = useState([]);
       const [customExs,     setCustomExs]     = useState([]);
+      const [liftGoals,     setLiftGoals]     = useState([]);
       const [dataLoading,   setDataLoading]   = useState(false);
 
       // Workout state
@@ -170,17 +294,19 @@
       const [previewSets,   setPreviewSets]   = useState(4);
       const [previewReps,   setPreviewReps]   = useState(10);
       const [activeWorkout, setActiveWorkout] = useState(null);
-      const [currentExIdx,  setCurrentExIdx]  = useState(0);  // one-at-a-time index
+      const [currentExIdx,  setCurrentExIdx]  = useState(0);
       const [completedSets, setCompletedSets] = useState({});
       const [noteFor,       setNoteFor]       = useState({});
+      const [summaryData,   setSummaryData]   = useState(null); // workout summary
 
       // Custom builder
       const [customExIds,   setCustomExIds]   = useState([]);
       const [customGoal,    setCustomGoal]    = useState("hypertrophy");
 
-      // Modals & forms
+      // Modal & forms
       const [modal,         setModal]         = useState(null);
       const [newEx,         setNewEx]         = useState({name:"",category:"Chest",unit:"lbs",defaultWeight:45,increment:5});
+      const [newLiftGoal,   setNewLiftGoal]   = useState({exId:"",targetWeight:""});
       const [pastDate,      setPastDate]      = useState("");
       const [pastRows,      setPastRows]      = useState([{exId:"",weight:"",reps:"",sets:""}]);
       const [signInErr,     setSignInErr]     = useState(null);
@@ -190,112 +316,126 @@
 
       const allExercises = [...BUILTIN_EXERCISES, ...customExs];
 
-      // ── AUTH ────────────────────────────────────────────────────
-      useEffect(() => {
-        const unsub = auth.onAuthStateChanged(async user => {
+      // ── AUTH ──────────────────────────────────────────────────
+      useEffect(()=>{
+        const unsub=auth.onAuthStateChanged(async user=>{
           setAuthUser(user||null);
-          if (user) loadData(user.uid);
+          if(user) loadData(user.uid);
         });
-        return ()=>unsub();
-      }, []);
+        return()=>unsub();
+      },[]);
 
       const loadData = async (uid) => {
         setDataLoading(true);
         try {
-          const [prof,wkts,cexs] = await Promise.all([fbGetProfile(uid),fbGetWorkouts(uid),fbGetCustomExs(uid)]);
-          if (prof) setProfileS(prof);
-          setWorkouts(wkts);
-          setCustomExs(cexs);
-        } catch(e) { console.error(e); }
+          const [prof,wkts,cexs,lgs]=await Promise.all([fbGetProfile(uid),fbGetWorkouts(uid),fbGetCustomExs(uid),fbGetLiftGoals(uid)]);
+          if(prof) setProfileS(prof);
+          setWorkouts(wkts); setCustomExs(cexs); setLiftGoals(lgs);
+        } catch(e){console.error(e);}
         setDataLoading(false);
       };
 
-      useEffect(() => {
-        if (authUser && !dataLoading && profile===null) {
+      useEffect(()=>{
+        if(authUser&&!dataLoading&&profile===null){
           const p={goal:"hypertrophy",exercises:[],created:new Date().toISOString(),uid:authUser.uid};
           saveProfile(p);
         }
-      }, [authUser,dataLoading,profile]);
+      },[authUser,dataLoading,profile]);
 
       const handleSignIn = async () => {
         setSignInErr(null); setSigningIn(true);
-        try { await auth.signInWithPopup(gProvider); }
-        catch(e) {
+        try{await auth.signInWithPopup(gProvider);}
+        catch(e){
           setSigningIn(false);
-          if (e.code!=="auth/popup-closed-by-user"&&e.code!=="auth/cancelled-popup-request")
+          if(e.code!=="auth/popup-closed-by-user"&&e.code!=="auth/cancelled-popup-request")
             setSignInErr("Sign-in failed: "+(e.message||e.code));
         }
       };
 
-      const handleSignOut = async () => { await auth.signOut(); setProfileS(null);setWorkouts([]);setCustomExs([]);setScreen("home"); };
+      const handleSignOut = async () => { await auth.signOut(); setProfileS(null);setWorkouts([]);setCustomExs([]);setLiftGoals([]);setScreen("home"); };
 
-      const showToast = (msg) => { setToast(msg); clearTimeout(toastTimer.current); toastTimer.current=setTimeout(()=>setToast(null),3000); };
+      const showToast=(msg)=>{setToast(msg);clearTimeout(toastTimer.current);toastTimer.current=setTimeout(()=>setToast(null),3000);};
 
-      const saveProfile  = async (p) => { setProfileS(p); if(authUser) await fbSetProfile(authUser.uid,p); };
-      const addWorkout   = async (w) => { if(authUser){const id=await fbAddWorkout(authUser.uid,w);w={...w,_id:id};} setWorkouts(prev=>[...prev,w].sort((a,b)=>new Date(a.date)-new Date(b.date))); };
-      const doAddCustomEx = async (ex) => { if(authUser){const fid=await fbAddCustomEx(authUser.uid,ex);ex={...ex,_fid:fid};} setCustomExs(prev=>[...prev,ex]); return ex; };
+      const saveProfile = async(p)=>{setProfileS(p);if(authUser)await fbSetProfile(authUser.uid,p);};
+      const addWorkoutRecord = async(w)=>{if(authUser){const id=await fbAddWorkout(authUser.uid,w);w={...w,_id:id};}setWorkouts(prev=>[...prev,w].sort((a,b)=>new Date(a.date)-new Date(b.date)));};
+      const doAddCustomEx = async(ex)=>{if(authUser){const fid=await fbAddCustomEx(authUser.uid,ex);ex={...ex,_fid:fid};}setCustomExs(prev=>[...prev,ex]);return ex;};
+      const doAddLiftGoal = async(g)=>{if(authUser){const id=await fbAddLiftGoal(authUser.uid,g);g={...g,_id:id};}setLiftGoals(prev=>[...prev,g]);};
+      const doDelLiftGoal = async(id)=>{if(authUser)await fbDelLiftGoal(authUser.uid,id);setLiftGoals(prev=>prev.filter(g=>g._id!==id));};
 
-      // ── WORKOUT LOGIC ────────────────────────────────────────────
-      const getLastForExercise = (exId) => {
+      // ── WORKOUT LOGIC ────────────────────────────────────────
+      const getLastForExercise=(exId)=>{
         for(let i=workouts.length-1;i>=0;i--){
           const ex=workouts[i].exercises?.find(e=>e.id===exId);
-          if(ex) return {workout:workouts[i],exercise:ex};
+          if(ex) return{workout:workouts[i],exercise:ex};
         }
         return null;
       };
 
-      const buildExerciseList = (exIdList, sets, reps) => {
+      const buildExerciseList=(exIdList,sets,reps)=>{
+        const goal=profile?.goal||"hypertrophy";
         return exIdList.map(exId=>{
           const def=allExercises.find(e=>e.id===exId);
           if(!def) return null;
           const last=getLastForExercise(exId);
-          const goal=profile?.goal||"hypertrophy";
           let weight=def.defaultWeight;
           if(last){
             const days=(Date.now()-new Date(last.workout.date))/86400000;
             const weeks=Math.max(1,Math.round(days/7));
             weight=safeProgressWeight(last.exercise.weight,goal,weeks,def.unit);
           }
-          return {id:exId,name:def.name,category:def.category,weight,unit:def.unit,sets,reps,increment:def.increment};
+          return{id:exId,name:def.name,category:def.category,weight,unit:def.unit,sets,reps,increment:def.increment};
         }).filter(Boolean);
       };
 
-      const launchWorkout = (tmpl, extras, sets, reps) => {
+      const launchWorkout=(tmpl,extras,sets,reps)=>{
         const exercises=buildExerciseList([...tmpl.exercises,...extras],sets,reps);
         setActiveWorkout({date:new Date().toISOString(),exercises,completed:false,templateLabel:tmpl.label});
-        setCurrentExIdx(0); setCompletedSets({}); setNoteFor({});
+        setCurrentExIdx(0);setCompletedSets({});setNoteFor({});setSummaryData(null);
         setScreen("workout");
       };
 
-      const launchCustomWorkout = () => {
+      const launchCustomWorkout=()=>{
         const sr=GOAL_SETS[customGoal];
         const exercises=buildExerciseList(customExIds,sr.sets,sr.reps);
         setActiveWorkout({date:new Date().toISOString(),exercises,completed:false,templateLabel:"Custom"});
-        setCurrentExIdx(0); setCompletedSets({}); setNoteFor({});
+        setCurrentExIdx(0);setCompletedSets({});setNoteFor({});setSummaryData(null);
         setScreen("workout");
       };
 
-      const finishWorkout = async () => {
-        await addWorkout({...activeWorkout,completed:true});
-        setActiveWorkout(null); setActiveTmpl(null); setExtraExIds([]);
-        showToast("Workout saved! Great work 💪");
-        setScreen("home");
+      const finishWorkout=async()=>{
+        const w={...activeWorkout,completed:true};
+        await addWorkoutRecord(w);
+        // Build summary
+        const summary={
+          templateLabel:w.templateLabel,
+          date:w.date,
+          exercises:w.exercises.map(ex=>{
+            const doneSets=Array.from({length:ex.sets},(_,i)=>!!completedSets[`${ex.id}_${i}`]);
+            const completed=doneSets.filter(Boolean).length;
+            const last=getLastForExercise(ex.id);
+            // check if weight is higher than last time
+            const improved=last&&ex.weight>last.exercise.weight;
+            const note=noteFor[ex.id]||"";
+            // Check lift goals
+            const matchedGoals=liftGoals.filter(g=>g.exId===ex.id&&ex.weight>=g.targetWeight);
+            return{...ex,completedSets:completed,totalSets:ex.sets,improved,note,matchedGoals};
+          }),
+        };
+        setSummaryData(summary);
+        setActiveWorkout(null);setActiveTmpl(null);setExtraExIds([]);
+        setScreen("summary");
       };
 
-      const cancelWorkout = () => { setActiveWorkout(null);setActiveTmpl(null);setExtraExIds([]);setScreen("home"); };
+      const cancelWorkout=()=>{setActiveWorkout(null);setActiveTmpl(null);setExtraExIds([]);setScreen("home");};
 
-      // Set completion helpers
-      const toggleSet = (exId,i) => setCompletedSets(p=>({...p,[`${exId}_${i}`]:!p[`${exId}_${i}`]}));
-      const adjustWeight = (exId,delta) => setActiveWorkout(p=>({...p,exercises:p.exercises.map(e=>e.id===exId?{...e,weight:Math.max(0,+(e.weight+delta).toFixed(2))}:e)}));
+      const toggleSet=(exId,i)=>setCompletedSets(p=>({...p,[`${exId}_${i}`]:!p[`${exId}_${i}`]}));
+      const adjustWeight=(exId,delta)=>setActiveWorkout(p=>({...p,exercises:p.exercises.map(e=>e.id===exId?{...e,weight:Math.max(0,+(e.weight+delta).toFixed(2))}:e)}));
 
-      const setsForEx = (ex) => Array.from({length:ex.sets},(_,i)=>!!completedSets[`${ex.id}_${i}`]);
-      const totalSets = activeWorkout?activeWorkout.exercises.reduce((a,e)=>a+e.sets,0):0;
-      const totalDone = activeWorkout?activeWorkout.exercises.reduce((a,ex)=>{
-        setsForEx(ex).forEach(d=>{if(d)a++;});return a;
-      },0):0;
+      const setsForEx=(ex)=>Array.from({length:ex.sets},(_,i)=>!!completedSets[`${ex.id}_${i}`]);
+      const totalSets=activeWorkout?activeWorkout.exercises.reduce((a,e)=>a+e.sets,0):0;
+      const totalDone=activeWorkout?activeWorkout.exercises.reduce((a,ex)=>{setsForEx(ex).forEach(d=>{if(d)a++;});return a;},0):0;
 
-      // Save custom exercise
-      const saveNewExercise = async (addToWorkout=false) => {
+      const saveNewExercise=async(addToWorkout=false)=>{
         if(!newEx.name.trim()) return;
         const ex={id:"custom_"+Date.now(),name:newEx.name.trim(),category:newEx.category,unit:newEx.unit,defaultWeight:Number(newEx.defaultWeight)||0,increment:Number(newEx.increment)||5,custom:true};
         const saved=await doAddCustomEx(ex);
@@ -304,86 +444,100 @@
           else setCustomExIds(p=>[...p,saved.id]);
         }
         setNewEx({name:"",category:"Chest",unit:"lbs",defaultWeight:45,increment:5});
-        setModal(null); showToast(ex.name+" added!");
+        setModal(null);showToast(ex.name+" added!");
       };
 
-      // Save past workout
-      const savePastWorkout = async () => {
+      const saveNewLiftGoal=async()=>{
+        if(!newLiftGoal.exId||!newLiftGoal.targetWeight) return;
+        const g={exId:newLiftGoal.exId,targetWeight:Number(newLiftGoal.targetWeight),created:new Date().toISOString()};
+        await doAddLiftGoal(g);
+        setNewLiftGoal({exId:"",targetWeight:""});
+        setModal(null);showToast("Goal set!");
+      };
+
+      const savePastWorkout=async()=>{
         if(!pastDate) return;
         const exercises=pastRows.filter(r=>r.exId&&r.weight!==""&&r.reps!=="").map(r=>{
           const def=allExercises.find(e=>e.id===r.exId);
-          return {id:r.exId,name:def?.name||r.exId,category:def?.category||"Other",weight:Number(r.weight),unit:def?.unit||"lbs",sets:Number(r.sets)||3,reps:Number(r.reps),increment:def?.increment||5};
+          return{id:r.exId,name:def?.name||r.exId,category:def?.category||"Other",weight:Number(r.weight),unit:def?.unit||"lbs",sets:Number(r.sets)||3,reps:Number(r.reps),increment:def?.increment||5};
         });
         if(!exercises.length) return;
-        await addWorkout({date:new Date(pastDate+"T12:00:00").toISOString(),exercises,completed:true,imported:true});
-        setPastDate(""); setPastRows([{exId:"",weight:"",reps:"",sets:""}]);
-        setModal(null); showToast("Past workout imported!");
+        await addWorkoutRecord({date:new Date(pastDate+"T12:00:00").toISOString(),exercises,completed:true,imported:true});
+        setPastDate("");setPastRows([{exId:"",weight:"",reps:"",sets:""}]);
+        setModal(null);showToast("Past workout imported!");
       };
 
-      // ── STYLES ────────────────────────────────────────────────────
-      const s = {
-        app:       {minHeight:"100vh",background:"#0a0a0f",color:"#f0f0e8",fontFamily:"'DM Sans',sans-serif",position:"relative"},
-        bg:        {position:"fixed",inset:0,background:"radial-gradient(ellipse 80% 60% at 50% -20%, #1a1a2e 0%, #0a0a0f 60%)",zIndex:0,pointerEvents:"none"},
-        grid:      {position:"fixed",inset:0,backgroundImage:"linear-gradient(rgba(232,255,107,0.03) 1px,transparent 1px),linear-gradient(90deg,rgba(232,255,107,0.03) 1px,transparent 1px)",backgroundSize:"60px 60px",zIndex:0,pointerEvents:"none"},
-        content:   {position:"relative",zIndex:1,maxWidth:480,margin:"0 auto",padding:"24px 20px 110px"},
-        header:    {display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:24,paddingTop:8},
-        logo:      {fontFamily:"'Space Mono',monospace",fontSize:20,fontWeight:700,color:"#e8ff6b",letterSpacing:2},
-        card:      {background:"rgba(255,255,255,0.04)",border:"1px solid rgba(232,255,107,0.12)",borderRadius:16,padding:20,marginBottom:12},
-        accentCard:{background:"rgba(232,255,107,0.08)",border:"1px solid rgba(232,255,107,0.3)",borderRadius:16,padding:24,marginBottom:16},
-        btn:       {background:"#e8ff6b",color:"#0a0a0f",border:"none",borderRadius:12,padding:"14px 28px",fontFamily:"'Space Mono',monospace",fontWeight:700,fontSize:14,letterSpacing:1,cursor:"pointer",width:"100%",marginTop:8,display:"block"},
-        btnOutline:{background:"transparent",color:"#e8ff6b",border:"1px solid rgba(232,255,107,0.4)",borderRadius:12,padding:"12px 24px",fontFamily:"'Space Mono',monospace",fontSize:13,letterSpacing:1,cursor:"pointer"},
-        btnSm:     {background:"rgba(232,255,107,0.12)",color:"#e8ff6b",border:"1px solid rgba(232,255,107,0.3)",borderRadius:8,padding:"8px 14px",fontFamily:"'Space Mono',monospace",fontSize:11,letterSpacing:1,cursor:"pointer"},
-        btnDanger: {background:"rgba(255,80,80,0.1)",color:"#ff6b6b",border:"1px solid rgba(255,80,80,0.3)",borderRadius:12,padding:"10px 20px",fontFamily:"'Space Mono',monospace",fontSize:12,cursor:"pointer"},
-        label:     {fontSize:11,letterSpacing:3,color:"#888",fontFamily:"'Space Mono',monospace",marginBottom:8,textTransform:"uppercase",display:"block"},
-        input:     {background:"rgba(255,255,255,0.06)",border:"1px solid rgba(232,255,107,0.2)",borderRadius:10,padding:"12px 16px",color:"#f0f0e8",fontFamily:"'DM Sans',sans-serif",fontSize:16,width:"100%",outline:"none",boxSizing:"border-box"},
-        select:    {background:"rgba(30,30,48,1)",border:"1px solid rgba(232,255,107,0.2)",borderRadius:10,padding:"12px 16px",color:"#f0f0e8",fontFamily:"'DM Sans',sans-serif",fontSize:15,width:"100%",outline:"none",boxSizing:"border-box"},
-        tag:       {display:"inline-block",background:"rgba(232,255,107,0.1)",border:"1px solid rgba(232,255,107,0.25)",borderRadius:6,padding:"4px 10px",fontSize:11,letterSpacing:1,color:"#e8ff6b",fontFamily:"'Space Mono',monospace"},
-        navBar:    {position:"fixed",bottom:0,left:0,right:0,background:"rgba(10,10,15,0.97)",borderTop:"1px solid rgba(232,255,107,0.1)",display:"flex",justifyContent:"space-around",padding:"12px 0 20px",zIndex:100},
-        navBtn:    {background:"none",border:"none",cursor:"pointer",display:"flex",flexDirection:"column",alignItems:"center",gap:4,fontFamily:"'Space Mono',monospace",fontSize:9,letterSpacing:1,padding:"4px 20px"},
-        setBtn:    {width:44,height:44,borderRadius:10,border:"1px solid rgba(232,255,107,0.25)",background:"transparent",color:"#e8ff6b",fontSize:22,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center"},
-        setDot:    (done)=>({width:44,height:44,borderRadius:10,border:done?"none":"1px solid rgba(255,255,255,0.15)",background:done?"#e8ff6b":"rgba(255,255,255,0.04)",color:done?"#0a0a0f":"#555",fontFamily:"'Space Mono',monospace",fontSize:13,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",transition:"all 0.15s",fontWeight:700}),
+      // ── LIFT GOAL HISTORY ─────────────────────────────────────
+      const getLiftHistory=(exId)=>{
+        const hist=[];
+        workouts.forEach(w=>{
+          const ex=w.exercises?.find(e=>e.id===exId);
+          if(ex) hist.push({date:w.date,weight:ex.weight});
+        });
+        return hist.sort((a,b)=>new Date(a.date)-new Date(b.date));
       };
 
-      const Toast = toast ? <div style={{position:"fixed",top:24,left:"50%",transform:"translateX(-50%)",background:"#e8ff6b",color:"#0a0a0f",padding:"12px 24px",borderRadius:10,fontFamily:"'Space Mono',monospace",fontSize:13,fontWeight:700,zIndex:600,boxShadow:"0 8px 32px rgba(232,255,107,0.3)",whiteSpace:"nowrap"}}>{toast}</div> : null;
+      // ── STYLES ────────────────────────────────────────────────
+      const s={
+        app:       {minHeight:"100vh",background:"var(--bg)",color:"var(--cream)",fontFamily:"'DM Sans',sans-serif",position:"relative"},
+        content:   {position:"relative",zIndex:2,maxWidth:480,margin:"0 auto",padding:"env(safe-area-inset-top, 20px) 20px 110px"},
+        contentPt: {paddingTop:"max(env(safe-area-inset-top, 20px), 20px)"},
+        header:    {display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:20,paddingTop:8},
+        logo:      {fontFamily:"'Playfair Display',serif",fontSize:22,fontWeight:900,color:"var(--gold)",letterSpacing:1},
+        card:      {background:"var(--surface)",border:"1px solid var(--border)",borderRadius:12,padding:18,marginBottom:10},
+        cardWarm:  {background:"rgba(200,146,42,0.08)",border:"1px solid rgba(200,146,42,0.3)",borderRadius:12,padding:18,marginBottom:10},
+        label:     {fontFamily:"'DM Mono',monospace",fontSize:10,letterSpacing:3,color:"var(--muted)",textTransform:"uppercase",display:"block",marginBottom:8},
+        input:     {background:"var(--surface2)",border:"1px solid var(--border)",borderRadius:8,padding:"11px 14px",color:"var(--cream)",fontFamily:"'DM Sans',sans-serif",fontSize:15,width:"100%",outline:"none",boxSizing:"border-box"},
+        select:    {background:"var(--surface2)",border:"1px solid var(--border)",borderRadius:8,padding:"11px 14px",color:"var(--cream)",fontFamily:"'DM Sans',sans-serif",fontSize:15,width:"100%",outline:"none",boxSizing:"border-box"},
+        btn:       {background:"var(--gold)",color:"var(--bg)",border:"none",borderRadius:8,padding:"14px 24px",fontFamily:"'DM Mono',monospace",fontWeight:500,fontSize:13,letterSpacing:2,cursor:"pointer",width:"100%",display:"block",marginTop:8,textTransform:"uppercase"},
+        btnOutline:{background:"transparent",color:"var(--gold)",border:"1px solid rgba(200,146,42,0.5)",borderRadius:8,padding:"12px 20px",fontFamily:"'DM Mono',monospace",fontSize:12,letterSpacing:2,cursor:"pointer",textTransform:"uppercase"},
+        btnSm:     {background:"var(--surface2)",color:"var(--gold2)",border:"1px solid var(--border2)",borderRadius:6,padding:"7px 12px",fontFamily:"'DM Mono',monospace",fontSize:10,letterSpacing:2,cursor:"pointer",textTransform:"uppercase"},
+        btnDanger: {background:"rgba(196,75,43,0.12)",color:"var(--brick2)",border:"1px solid rgba(196,75,43,0.35)",borderRadius:8,padding:"10px 18px",fontFamily:"'DM Mono',monospace",fontSize:11,letterSpacing:1,cursor:"pointer",textTransform:"uppercase"},
+        tag:       {display:"inline-block",background:"rgba(200,146,42,0.12)",border:"1px solid rgba(200,146,42,0.35)",borderRadius:4,padding:"3px 9px",fontFamily:"'DM Mono',monospace",fontSize:10,letterSpacing:2,color:"var(--gold2)",textTransform:"uppercase"},
+        navBar:    {position:"fixed",bottom:0,left:0,right:0,background:"var(--bg2)",borderTop:"1px solid var(--border)",display:"flex",justifyContent:"space-around",paddingBottom:"env(safe-area-inset-bottom, 12px)",paddingTop:10,zIndex:100},
+        navBtn:    {background:"none",border:"none",cursor:"pointer",display:"flex",flexDirection:"column",alignItems:"center",gap:3,fontFamily:"'DM Mono',monospace",fontSize:8,letterSpacing:2,padding:"4px 16px",textTransform:"uppercase"},
+        setBtn:    {width:46,height:46,borderRadius:8,border:"1px solid var(--border2)",background:"var(--surface)",color:"var(--gold)",fontSize:22,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center"},
+        setDot:    (done)=>({width:46,height:46,borderRadius:8,border:done?"none":"1px solid var(--border2)",background:done?"var(--gold)":"var(--surface)",color:done?"var(--bg)":"var(--muted)",fontFamily:"'DM Mono',monospace",fontSize:13,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",transition:"all 0.15s",fontWeight:500}),
+      };
 
-      const NavBar = ({active}) => (
+      const Toast=toast?<div style={{position:"fixed",top:24,left:"50%",transform:"translateX(-50%)",background:"var(--gold)",color:"var(--bg)",padding:"11px 22px",borderRadius:6,fontFamily:"'DM Mono',monospace",fontSize:12,letterSpacing:2,fontWeight:500,zIndex:600,boxShadow:"0 6px 24px rgba(200,146,42,0.4)",whiteSpace:"nowrap",textTransform:"uppercase"}}>{toast}</div>:null;
+
+      const NavBar=({active})=>(
         <nav style={s.navBar}>
-          {[["🏠","HOME","home"],["📋","HISTORY","history"],["⚙️","PROFILE","profile"]].map(([icon,lbl,scr])=>(
-            <button key={scr} style={{...s.navBtn,color:active===scr?"#e8ff6b":"#555"}} onClick={()=>setScreen(scr)}>
-              <span style={{fontSize:22}}>{icon}</span>{lbl}
+          {[["⊕","Train","home"],["◎","Goals","goals"],["▤","History","history"],["◉","Profile","profile"]].map(([icon,lbl,scr])=>(
+            <button key={scr} style={{...s.navBtn,color:active===scr?"var(--gold)":"var(--muted)"}} onClick={()=>setScreen(scr)}>
+              <span style={{fontSize:20,lineHeight:1}}>{icon}</span>{lbl}
             </button>
           ))}
         </nav>
       );
 
-      // ── EXERCISE FORM ─────────────────────────────────────────────
-      const ExerciseFormFields = () => (
+      // ── EXERCISE FORM ─────────────────────────────────────────
+      const ExerciseFormFields=()=>(
         <div style={{display:"flex",flexDirection:"column",gap:12}}>
-          <div><span style={s.label}>Name</span><input style={s.input} placeholder="e.g. Cable Fly" value={newEx.name} onChange={e=>setNewEx(p=>({...p,name:e.target.value}))} /></div>
+          <div><span style={s.label}>Name</span><input style={s.input} placeholder="e.g. Cable Fly" value={newEx.name} onChange={e=>setNewEx(p=>({...p,name:e.target.value}))}/></div>
           <div><span style={s.label}>Category</span><select style={s.select} value={newEx.category} onChange={e=>setNewEx(p=>({...p,category:e.target.value}))}>{CATEGORIES.map(c=><option key={c}>{c}</option>)}</select></div>
           <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}>
             <div><span style={s.label}>Unit</span><select style={s.select} value={newEx.unit} onChange={e=>setNewEx(p=>({...p,unit:e.target.value}))}><option value="lbs">lbs</option><option value="kg">kg</option><option value="reps">Bodyweight</option></select></div>
-            <div><span style={s.label}>Starting Weight</span><input style={s.input} type="number" value={newEx.defaultWeight} onChange={e=>setNewEx(p=>({...p,defaultWeight:e.target.value}))} disabled={newEx.unit==="reps"} /></div>
+            <div><span style={s.label}>Starting Weight</span><input style={s.input} type="number" value={newEx.defaultWeight} onChange={e=>setNewEx(p=>({...p,defaultWeight:e.target.value}))} disabled={newEx.unit==="reps"}/></div>
           </div>
-          <div><span style={s.label}>Increment Per Session</span><input style={s.input} type="number" value={newEx.increment} onChange={e=>setNewEx(p=>({...p,increment:e.target.value}))} /></div>
+          <div><span style={s.label}>Increment Per Session</span><input style={s.input} type="number" value={newEx.increment} onChange={e=>setNewEx(p=>({...p,increment:e.target.value}))}/></div>
         </div>
       );
 
-      // ── MODALS ────────────────────────────────────────────────────
-      // NOTE: renderModal is always rendered at the top level of every screen
-      // so modals work regardless of which screen is active
-      const renderModal = () => {
-        if (modal==="browseAdd") {
-          const activeIds = activeTmpl ? [...activeTmpl.exercises,...extraExIds] : customExIds;
-          const available = allExercises.filter(ex=>!activeIds.includes(ex.id));
-          return (
+      // ── MODALS ────────────────────────────────────────────────
+      const renderModal=()=>{
+        if(modal==="browseAdd"){
+          const activeIds=activeTmpl?[...activeTmpl.exercises,...extraExIds]:customExIds;
+          const available=allExercises.filter(ex=>!activeIds.includes(ex.id));
+          return(
             <Modal onClose={()=>setModal(null)}>
-              <span style={{...s.label,fontSize:13,marginBottom:16}}>ADD EXERCISE</span>
+              <span style={{...s.label,fontSize:12,marginBottom:16}}>Add Exercise</span>
               <div style={{maxHeight:"55vh",overflowY:"auto",marginBottom:12}}>
                 {CATEGORIES.map(cat=>{
                   const ces=available.filter(e=>e.category===cat);
                   if(!ces.length) return null;
-                  return (
+                  return(
                     <div key={cat} style={{marginBottom:14}}>
                       <span style={{...s.label,fontSize:9}}>{cat}</span>
                       <div style={{display:"flex",flexWrap:"wrap",gap:6}}>
@@ -391,8 +545,8 @@
                           <button key={ex.id} onClick={()=>{
                             if(activeTmpl) setExtraExIds(p=>[...p,ex.id]);
                             else setCustomExIds(p=>[...p,ex.id]);
-                            setModal(null); showToast(ex.name+" added!");
-                          }} style={{background:"rgba(255,255,255,0.05)",border:"1px solid rgba(255,255,255,0.1)",borderRadius:8,padding:"7px 12px",color:"#ccc",fontSize:13,cursor:"pointer"}}>
+                            setModal(null);showToast(ex.name+" added!");
+                          }} style={{background:"var(--surface2)",border:"1px solid var(--border)",borderRadius:6,padding:"7px 11px",color:"var(--cream2)",fontSize:13,cursor:"pointer"}}>
                             {ex.name}{ex.custom?" ★":""}
                           </button>
                         ))}
@@ -401,165 +555,181 @@
                   );
                 })}
               </div>
-              <button style={{...s.btnOutline,width:"100%",fontSize:12}} onClick={()=>setModal("createAndAdd")}>+ Create New Exercise</button>
+              <button style={{...s.btnOutline,width:"100%",fontSize:11}} onClick={()=>setModal("createAndAdd")}>+ Create New Exercise</button>
             </Modal>
           );
         }
-        if (modal==="createAndAdd") return (
+        if(modal==="createAndAdd") return(
           <Modal onClose={()=>setModal(null)}>
-            <span style={{...s.label,fontSize:13,marginBottom:16}}>CREATE & ADD EXERCISE</span>
-            <ExerciseFormFields />
-            <button style={{...s.btn,marginTop:12}} onClick={()=>saveNewExercise(true)}>CREATE & ADD</button>
+            <span style={{...s.label,fontSize:12,marginBottom:16}}>Create & Add Exercise</span>
+            <ExerciseFormFields/>
+            <button style={{...s.btn,marginTop:12}} onClick={()=>saveNewExercise(true)}>Create & Add</button>
           </Modal>
         );
-        if (modal==="addExercise") return (
+        if(modal==="addExercise") return(
           <Modal onClose={()=>setModal(null)}>
-            <span style={{...s.label,fontSize:13,marginBottom:16}}>ADD CUSTOM EXERCISE</span>
-            <ExerciseFormFields />
-            <button style={{...s.btn,marginTop:12}} onClick={()=>saveNewExercise(false)}>ADD EXERCISE</button>
+            <span style={{...s.label,fontSize:12,marginBottom:16}}>Add Custom Exercise</span>
+            <ExerciseFormFields/>
+            <button style={{...s.btn,marginTop:12}} onClick={()=>saveNewExercise(false)}>Add Exercise</button>
           </Modal>
         );
-        if (modal==="logPastWorkout") return (
+        if(modal==="addLiftGoal") return(
           <Modal onClose={()=>setModal(null)}>
-            <span style={{...s.label,fontSize:13,marginBottom:4}}>LOG PAST WORKOUT</span>
-            <p style={{color:"#888",fontSize:13,marginBottom:16,lineHeight:1.5}}>Enter a previous session to calibrate weight projections.</p>
-            <div style={{marginBottom:16}}><span style={s.label}>Date</span><input style={s.input} type="date" value={pastDate} onChange={e=>setPastDate(e.target.value)} /></div>
+            <span style={{...s.label,fontSize:12,marginBottom:4}}>Set a Lift Goal</span>
+            <p style={{color:"var(--muted)",fontSize:13,marginBottom:16,lineHeight:1.5}}>Choose an exercise and a target weight. IRONFORM will chart your progress and project when you'll get there.</p>
+            <div style={{display:"flex",flexDirection:"column",gap:12}}>
+              <div>
+                <span style={s.label}>Exercise</span>
+                <select style={s.select} value={newLiftGoal.exId} onChange={e=>setNewLiftGoal(p=>({...p,exId:e.target.value}))}>
+                  <option value="">Select exercise...</option>
+                  {CATEGORIES.map(cat=>{const ces=allExercises.filter(e=>e.category===cat);if(!ces.length)return null;return(<optgroup key={cat} label={cat}>{ces.map(ex=><option key={ex.id} value={ex.id}>{ex.name}</option>)}</optgroup>);})}
+                </select>
+              </div>
+              <div>
+                <span style={s.label}>Target Weight (lbs)</span>
+                <input style={s.input} type="number" placeholder="e.g. 135" value={newLiftGoal.targetWeight} onChange={e=>setNewLiftGoal(p=>({...p,targetWeight:e.target.value}))}/>
+              </div>
+            </div>
+            <button style={{...s.btn,marginTop:16}} onClick={saveNewLiftGoal}>Set Goal</button>
+          </Modal>
+        );
+        if(modal==="logPastWorkout") return(
+          <Modal onClose={()=>setModal(null)}>
+            <span style={{...s.label,fontSize:12,marginBottom:4}}>Log Past Workout</span>
+            <p style={{color:"var(--muted)",fontSize:13,marginBottom:16,lineHeight:1.5}}>Enter a previous session to calibrate your weight projections.</p>
+            <div style={{marginBottom:16}}><span style={s.label}>Date</span><input style={s.input} type="date" value={pastDate} onChange={e=>setPastDate(e.target.value)}/></div>
             {pastRows.map((row,i)=>(
-              <div key={i} style={{...s.card,padding:16,marginBottom:10}}>
-                <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:10}}>
-                  <span style={{...s.label,marginBottom:0}}>EXERCISE {i+1}</span>
-                  {pastRows.length>1&&<button style={{background:"none",border:"none",color:"#ff6b6b",cursor:"pointer",fontSize:20}} onClick={()=>setPastRows(p=>p.filter((_,idx)=>idx!==i))}>×</button>}
+              <div key={i} style={{...s.card,padding:14,marginBottom:8}}>
+                <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8}}>
+                  <span style={{...s.label,marginBottom:0}}>Exercise {i+1}</span>
+                  {pastRows.length>1&&<button style={{background:"none",border:"none",color:"var(--brick2)",cursor:"pointer",fontSize:18}} onClick={()=>setPastRows(p=>p.filter((_,idx)=>idx!==i))}>×</button>}
                 </div>
                 <div style={{display:"flex",flexDirection:"column",gap:8}}>
                   <select style={s.select} value={row.exId} onChange={e=>setPastRows(p=>p.map((r,idx)=>idx===i?{...r,exId:e.target.value}:r))}>
                     <option value="">Select exercise...</option>
-                    {CATEGORIES.map(cat=>{const ces=allExercises.filter(e=>e.category===cat);if(!ces.length)return null;return(<optgroup key={cat} label={cat}>{ces.map(ex=><option key={ex.id} value={ex.id}>{ex.name}{ex.custom?" ★":""}</option>)}</optgroup>);})}
+                    {CATEGORIES.map(cat=>{const ces=allExercises.filter(e=>e.category===cat);if(!ces.length)return null;return(<optgroup key={cat} label={cat}>{ces.map(ex=><option key={ex.id} value={ex.id}>{ex.name}</option>)}</optgroup>);})}
                   </select>
                   <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:8}}>
-                    {[["WEIGHT","weight","135"],["REPS","reps","5"],["SETS","sets","3"]].map(([lbl,key,ph])=>(
-                      <div key={key}><span style={{...s.label,fontSize:9}}>{lbl}</span><input style={{...s.input,padding:"10px 12px",fontSize:14}} type="number" placeholder={ph} value={row[key]} onChange={e=>setPastRows(p=>p.map((r,idx)=>idx===i?{...r,[key]:e.target.value}:r))} /></div>
+                    {[["Weight","weight","135"],["Reps","reps","5"],["Sets","sets","3"]].map(([lbl,key,ph])=>(
+                      <div key={key}><span style={{...s.label,fontSize:9}}>{lbl}</span><input style={{...s.input,padding:"9px 10px",fontSize:14}} type="number" placeholder={ph} value={row[key]} onChange={e=>setPastRows(p=>p.map((r,idx)=>idx===i?{...r,[key]:e.target.value}:r))}/></div>
                     ))}
                   </div>
                 </div>
               </div>
             ))}
-            <button style={{...s.btnOutline,width:"100%",marginBottom:10,fontSize:12}} onClick={()=>setPastRows(p=>[...p,{exId:"",weight:"",reps:"",sets:""}])}>+ ADD ANOTHER EXERCISE</button>
-            <button style={s.btn} onClick={savePastWorkout}>SAVE PAST WORKOUT</button>
+            <button style={{...s.btnOutline,width:"100%",marginBottom:10,fontSize:11}} onClick={()=>setPastRows(p=>[...p,{exId:"",weight:"",reps:"",sets:""}])}>+ Add Another Exercise</button>
+            <button style={s.btn} onClick={savePastWorkout}>Save Past Workout</button>
           </Modal>
         );
         return null;
       };
 
-      // ── SCREENS ───────────────────────────────────────────────────
+      // ═══════════════════════════════════════════════════════════
+      // SCREENS
+      // ═══════════════════════════════════════════════════════════
 
       // LOADING
-      if (authUser===undefined||dataLoading) return (
+      if(authUser===undefined||dataLoading) return(
         <div style={{...s.app,display:"flex",alignItems:"center",justifyContent:"center"}}>
-          <div style={s.bg}/><div style={s.grid}/>
-          <div style={{position:"relative",zIndex:1,textAlign:"center"}}>
-            <div style={{color:"#e8ff6b",fontFamily:"'Space Mono',monospace",fontSize:22,letterSpacing:4,marginBottom:12}}>IRONFORM</div>
-            <div style={{color:"#555",fontSize:12,letterSpacing:3}}>LOADING...</div>
+          <div style={{textAlign:"center",position:"relative",zIndex:2}}>
+            <div style={{fontFamily:"'Playfair Display',serif",fontSize:28,color:"var(--gold)",letterSpacing:2,marginBottom:10}}>IRONFORM</div>
+            <div style={{fontFamily:"'DM Mono',monospace",fontSize:10,color:"var(--muted)",letterSpacing:4}}>LOADING...</div>
           </div>
         </div>
       );
 
       // SIGN IN
-      if (!authUser) return (
+      if(!authUser) return(
         <div style={{...s.app,display:"flex",alignItems:"center",justifyContent:"center"}}>
-          <div style={s.bg}/><div style={s.grid}/>
-          <div style={{position:"relative",zIndex:1,width:"100%",maxWidth:400,padding:"0 24px",textAlign:"center"}}>
-            <div style={{fontFamily:"'Space Mono',monospace",fontSize:36,fontWeight:700,color:"#e8ff6b",letterSpacing:3,marginBottom:8}}>IRONFORM</div>
-            <div style={{color:"#888",marginBottom:48,fontSize:15,lineHeight:1.6}}>Your personal trainer.<br/>Every device. Every gym.</div>
-            <button onClick={handleSignIn} disabled={signingIn} style={{background:"#fff",color:"#0a0a0f",border:"none",borderRadius:14,padding:"16px 24px",fontFamily:"'Space Mono',monospace",fontWeight:700,fontSize:14,letterSpacing:1,cursor:"pointer",width:"100%",display:"flex",alignItems:"center",justifyContent:"center",gap:12,opacity:signingIn?0.7:1}}>
-              <svg width="20" height="20" viewBox="0 0 24 24"><path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/><path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/><path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l3.66-2.84z"/><path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/></svg>
-              {signingIn?"Signing in...":"Continue with Google"}
+          <div style={{position:"relative",zIndex:2,width:"100%",maxWidth:400,padding:"0 28px",textAlign:"center"}}>
+            {/* Vintage badge */}
+            <div style={{display:"inline-block",border:"2px solid var(--gold)",borderRadius:"50%",width:100,height:100,lineHeight:"96px",fontSize:36,marginBottom:24,color:"var(--gold)",background:"var(--surface)"}}>
+              🏋️
+            </div>
+            <div style={{fontFamily:"'Playfair Display',serif",fontSize:38,fontWeight:900,color:"var(--gold)",letterSpacing:2,marginBottom:4}}>IRONFORM</div>
+            <div style={{fontFamily:"'DM Mono',monospace",fontSize:10,letterSpacing:4,color:"var(--muted)",marginBottom:32,textTransform:"uppercase"}}>Personal Strength Journal</div>
+            <div style={{width:60,height:1,background:"var(--border2)",margin:"0 auto 32px"}}/>
+            <button onClick={handleSignIn} disabled={signingIn} style={{background:"var(--cream)",color:"var(--bg)",border:"none",borderRadius:8,padding:"15px 20px",fontFamily:"'DM Mono',monospace",fontWeight:500,fontSize:12,letterSpacing:2,cursor:"pointer",width:"100%",display:"flex",alignItems:"center",justifyContent:"center",gap:12,opacity:signingIn?0.7:1,textTransform:"uppercase"}}>
+              <svg width="18" height="18" viewBox="0 0 24 24"><path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/><path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/><path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l3.66-2.84z"/><path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/></svg>
+              {signingIn?"Signing in...":"Sign in with Google"}
             </button>
-            {signInErr&&<div style={{marginTop:16,color:"#ff6b6b",fontSize:13}}>{signInErr}</div>}
+            {signInErr&&<div style={{marginTop:14,color:"var(--brick2)",fontSize:13,fontFamily:"'DM Mono',monospace"}}>{signInErr}</div>}
           </div>
         </div>
       );
 
       // PRESET PREVIEW
-      if (screen==="preset_preview"&&activeTmpl) {
+      if(screen==="preset_preview"&&activeTmpl){
         const tmpl=activeTmpl;
         const goal=profile?.goal||"hypertrophy";
         const allIds=[...tmpl.exercises,...extraExIds];
-        return (
+        return(
           <div style={s.app}>
-            <div style={s.bg}/><div style={s.grid}/>{renderModal()}{Toast}
-            <div style={s.content}>
+            {renderModal()}{Toast}
+            <div style={{...s.content,...s.contentPt}}>
               <div style={s.header}>
                 <div style={s.logo}>IRONFORM</div>
-                <span style={{...s.tag,background:tmpl.colorBg,border:`1px solid ${tmpl.colorBorder}`,color:tmpl.color}}>{tmpl.emoji} {tmpl.label.toUpperCase()}</span>
+                <span style={{...s.tag,background:tmpl.accentDim,border:`1px solid ${tmpl.accentBorder}`,color:tmpl.accent}}>{tmpl.emoji} {tmpl.label}</span>
               </div>
-              <BackBtn onClick={()=>{setActiveTmpl(null);setExtraExIds([]);setScreen("home");}} />
+              <BackBtn onClick={()=>{setActiveTmpl(null);setExtraExIds([]);setScreen("home");}}/>
 
-              <h2 style={{fontSize:24,fontWeight:800,marginBottom:16}}>{tmpl.label}</h2>
+              <h2 style={{fontFamily:"'Playfair Display',serif",fontSize:26,color:"var(--cream)",marginBottom:16}}>{tmpl.label}</h2>
 
-              {/* Sets & reps editor */}
-              <div style={{...s.card,marginBottom:16}}>
-                <span style={s.label}>SET & REP SCHEME</span>
+              <div style={{...s.card,marginBottom:14}}>
+                <span style={s.label}>Set & Rep Scheme</span>
                 <div style={{display:"flex",justifyContent:"space-around",paddingTop:8}}>
-                  <Stepper value={previewSets} onChange={setPreviewSets} min={1} label="SETS" />
-                  <div style={{width:1,background:"rgba(255,255,255,0.06)"}}/>
-                  <Stepper value={previewReps} onChange={setPreviewReps} min={1} label="REPS" />
+                  <Stepper value={previewSets} onChange={setPreviewSets} min={1} label="Sets"/>
+                  <div style={{width:1,background:"var(--border)"}}/>
+                  <Stepper value={previewReps} onChange={setPreviewReps} min={1} label="Reps"/>
                 </div>
               </div>
 
-              {/* Exercise list */}
-              <span style={s.label}>EXERCISES ({allIds.length})</span>
-              <div style={{marginBottom:8}}>
-                {allIds.map(exId=>{
-                  const def=allExercises.find(e=>e.id===exId);
-                  if(!def) return null;
-                  const last=getLastForExercise(exId);
-                  const weight=last?safeProgressWeight(last.exercise.weight,goal,Math.max(1,Math.round((Date.now()-new Date(last.workout.date))/86400000/7)),def.unit):def.defaultWeight;
-                  const isExtra=extraExIds.includes(exId);
-                  return (
-                    <div key={exId} style={{...s.card,marginBottom:8,display:"flex",justifyContent:"space-between",alignItems:"center",padding:"14px 16px"}}>
-                      <div>
-                        <div style={{fontWeight:700,fontSize:15,display:"flex",alignItems:"center",gap:8}}>
-                          {def.name}
-                          {isExtra&&<span style={{fontSize:9,color:"#7ec8ff",fontFamily:"'Space Mono',monospace",background:"rgba(126,200,255,0.1)",border:"1px solid rgba(126,200,255,0.3)",borderRadius:4,padding:"2px 6px"}}>ADDED</span>}
-                        </div>
-                        <div style={{fontSize:12,color:"#555",marginTop:2,fontFamily:"'Space Mono',monospace"}}>
-                          {def.unit==="reps"?"Bodyweight":`${weight} ${def.unit}`}
-                          {last?` · last ${new Date(last.workout.date).toLocaleDateString("en-US",{month:"short",day:"numeric"})}`:" · first time"}
-                        </div>
+              <span style={s.label}>Exercises ({allIds.length})</span>
+              {allIds.map(exId=>{
+                const def=allExercises.find(e=>e.id===exId);
+                if(!def) return null;
+                const last=getLastForExercise(exId);
+                const weight=last?safeProgressWeight(last.exercise.weight,goal,Math.max(1,Math.round((Date.now()-new Date(last.workout.date))/86400000/7)),def.unit):def.defaultWeight;
+                const isExtra=extraExIds.includes(exId);
+                return(
+                  <div key={exId} style={{...s.card,marginBottom:8,display:"flex",justifyContent:"space-between",alignItems:"center",padding:"12px 14px"}}>
+                    <div>
+                      <div style={{fontWeight:600,fontSize:15,color:"var(--cream)",display:"flex",alignItems:"center",gap:8}}>
+                        {def.name}
+                        {isExtra&&<span style={{...s.tag,fontSize:8,padding:"2px 6px",color:"var(--blue2)",background:"rgba(74,108,140,0.15)",border:"1px solid rgba(74,108,140,0.35)"}}>Added</span>}
                       </div>
-                      {isExtra&&<button onClick={()=>setExtraExIds(p=>p.filter(id=>id!==exId))} style={{background:"none",border:"none",color:"#ff6b6b",cursor:"pointer",fontSize:20,padding:"0 4px",flexShrink:0}}>×</button>}
+                      <div style={{fontFamily:"'DM Mono',monospace",fontSize:11,color:"var(--muted)",marginTop:3}}>
+                        {def.unit==="reps"?"Bodyweight":`${weight} ${def.unit}`}
+                        {last?` · last ${new Date(last.workout.date).toLocaleDateString("en-US",{month:"short",day:"numeric"})}`:" · first time"}
+                      </div>
                     </div>
-                  );
-                })}
-              </div>
+                    {isExtra&&<button onClick={()=>setExtraExIds(p=>p.filter(id=>id!==exId))} style={{background:"none",border:"none",color:"var(--brick2)",cursor:"pointer",fontSize:20,flexShrink:0}}>×</button>}
+                  </div>
+                );
+              })}
 
-              <button style={{...s.btnOutline,width:"100%",marginBottom:10,marginTop:4}} onClick={()=>setModal("browseAdd")}>
-                + Add Exercise to Today's Workout
-              </button>
-              <button style={s.btn} onClick={()=>launchWorkout(tmpl,extraExIds,previewSets,previewReps)}>
-                BEGIN {tmpl.label.toUpperCase()} →
-              </button>
+              <button style={{...s.btnOutline,width:"100%",marginBottom:10,marginTop:6}} onClick={()=>setModal("browseAdd")}>+ Add Exercise Today</button>
+              <button style={s.btn} onClick={()=>launchWorkout(tmpl,extraExIds,previewSets,previewReps)}>Begin {tmpl.label}</button>
             </div>
           </div>
         );
       }
 
       // CUSTOM BUILDER
-      if (screen==="custom_builder") return (
+      if(screen==="custom_builder") return(
         <div style={s.app}>
-          <div style={s.bg}/><div style={s.grid}/>{renderModal()}{Toast}
-          <div style={s.content}>
-            <div style={s.header}><div style={s.logo}>IRONFORM</div><span style={s.tag}>CUSTOM</span></div>
-            <BackBtn onClick={()=>{setCustomExIds([]);setCustomGoal("hypertrophy");setScreen("home");}} />
+          {renderModal()}{Toast}
+          <div style={{...s.content,...s.contentPt}}>
+            <div style={s.header}><div style={s.logo}>IRONFORM</div><span style={s.tag}>Custom</span></div>
+            <BackBtn onClick={()=>{setCustomExIds([]);setCustomGoal("hypertrophy");setScreen("home");}}/>
+            <h2 style={{fontFamily:"'Playfair Display',serif",fontSize:26,color:"var(--cream)",marginBottom:6}}>Build Your Workout</h2>
+            <p style={{color:"var(--muted)",fontSize:14,marginBottom:18,lineHeight:1.5}}>Pick your exercises, then go.</p>
 
-            <h2 style={{fontSize:24,fontWeight:800,marginBottom:6}}>Build Your Workout</h2>
-            <p style={{color:"#888",fontSize:14,marginBottom:20,lineHeight:1.5}}>Pick your exercises, then go.</p>
-
-            <div style={{...s.card,marginBottom:16}}>
+            <div style={{...s.card,marginBottom:14}}>
               <span style={s.label}>Training Goal</span>
               <div style={{display:"flex",gap:8,flexWrap:"wrap",marginTop:4}}>
                 {Object.entries(GOALS).map(([key,g])=>(
-                  <button key={key} onClick={()=>setCustomGoal(key)} style={{background:customGoal===key?"rgba(232,255,107,0.15)":"rgba(255,255,255,0.04)",border:customGoal===key?"1px solid rgba(232,255,107,0.5)":"1px solid rgba(255,255,255,0.1)",borderRadius:8,padding:"8px 14px",color:customGoal===key?"#e8ff6b":"#888",fontSize:13,cursor:"pointer"}}>
+                  <button key={key} onClick={()=>setCustomGoal(key)} style={{background:customGoal===key?"rgba(200,146,42,0.18)":"var(--surface2)",border:customGoal===key?"1px solid rgba(200,146,42,0.5)":"1px solid var(--border)",borderRadius:6,padding:"8px 13px",color:customGoal===key?"var(--gold)":"var(--muted)",fontSize:13,cursor:"pointer"}}>
                     {g.label}
                   </button>
                 ))}
@@ -567,18 +737,18 @@
             </div>
 
             {customExIds.length>0&&(
-              <div style={s.card}>
+              <div style={{...s.card,marginBottom:14}}>
                 <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:10}}>
-                  <span style={s.label}>{customExIds.length} SELECTED</span>
-                  <button style={{background:"none",border:"none",color:"#ff6b6b",cursor:"pointer",fontFamily:"'Space Mono',monospace",fontSize:10,letterSpacing:1}} onClick={()=>setCustomExIds([])}>CLEAR ALL</button>
+                  <span style={s.label}>{customExIds.length} Selected</span>
+                  <button style={{background:"none",border:"none",color:"var(--brick2)",cursor:"pointer",fontFamily:"'DM Mono',monospace",fontSize:9,letterSpacing:2,textTransform:"uppercase"}} onClick={()=>setCustomExIds([])}>Clear All</button>
                 </div>
                 {customExIds.map(exId=>{
                   const def=allExercises.find(e=>e.id===exId);
                   if(!def) return null;
-                  return (
-                    <div key={exId} style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"8px 0",borderBottom:"1px solid rgba(255,255,255,0.05)"}}>
-                      <span style={{fontSize:14}}>{def.name}</span>
-                      <button onClick={()=>setCustomExIds(p=>p.filter(id=>id!==exId))} style={{background:"none",border:"none",color:"#ff6b6b",cursor:"pointer",fontSize:18,padding:"0 4px"}}>×</button>
+                  return(
+                    <div key={exId} style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"8px 0",borderBottom:"1px solid var(--border)"}}>
+                      <span style={{fontSize:14,color:"var(--cream)"}}>{def.name}</span>
+                      <button onClick={()=>setCustomExIds(p=>p.filter(id=>id!==exId))} style={{background:"none",border:"none",color:"var(--brick2)",cursor:"pointer",fontSize:18}}>×</button>
                     </div>
                   );
                 })}
@@ -587,18 +757,18 @@
 
             <div style={s.card}>
               <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:12}}>
-                <span style={s.label}>BROWSE</span>
+                <span style={s.label}>Browse Exercises</span>
                 <button style={s.btnSm} onClick={()=>{setActiveTmpl(null);setModal("browseAdd");}}>+ Add</button>
               </div>
               {CATEGORIES.map(cat=>{
                 const ces=allExercises.filter(e=>e.category===cat&&!customExIds.includes(e.id));
                 if(!ces.length) return null;
-                return (
-                  <div key={cat} style={{marginBottom:14}}>
+                return(
+                  <div key={cat} style={{marginBottom:13}}>
                     <span style={{...s.label,fontSize:9}}>{cat}</span>
                     <div style={{display:"flex",flexWrap:"wrap",gap:6}}>
                       {ces.map(ex=>(
-                        <button key={ex.id} onClick={()=>setCustomExIds(p=>[...p,ex.id])} style={{background:"rgba(255,255,255,0.04)",border:"1px solid rgba(255,255,255,0.1)",borderRadius:8,padding:"7px 12px",color:"#888",fontSize:13,cursor:"pointer"}}>
+                        <button key={ex.id} onClick={()=>setCustomExIds(p=>[...p,ex.id])} style={{background:"var(--surface2)",border:"1px solid var(--border)",borderRadius:6,padding:"7px 11px",color:"var(--cream2)",fontSize:13,cursor:"pointer"}}>
                           {ex.name}{ex.custom?" ★":""}
                         </button>
                       ))}
@@ -607,152 +777,300 @@
                 );
               })}
             </div>
-
             <button style={{...s.btn,opacity:customExIds.length<1?0.4:1}} onClick={()=>customExIds.length>=1&&launchCustomWorkout()}>
-              BEGIN WORKOUT ({customExIds.length} exercise{customExIds.length!==1?"s":""}) →
+              Begin Workout ({customExIds.length} exercise{customExIds.length!==1?"s":""})
             </button>
           </div>
         </div>
       );
 
       // ACTIVE WORKOUT — one exercise at a time
-      if (screen==="workout"&&activeWorkout) {
-        const exercises = activeWorkout.exercises;
-        const ex = exercises[currentExIdx];
-        const done = setsForEx(ex);
-        const allDone = done.every(Boolean);
-        const lastRec = getLastForExercise(ex.id);
-        const isLast = currentExIdx===exercises.length-1;
-        const progress = totalSets>0?totalDone/totalSets:0;
+      if(screen==="workout"&&activeWorkout){
+        const exercises=activeWorkout.exercises;
+        const ex=exercises[currentExIdx];
+        const done=setsForEx(ex);
+        const allDone=done.every(Boolean);
+        const lastRec=getLastForExercise(ex.id);
+        const isLast=currentExIdx===exercises.length-1;
+        const progress=totalSets>0?totalDone/totalSets:0;
 
-        return (
+        return(
           <div style={s.app}>
-            <div style={s.bg}/><div style={s.grid}/>{Toast}
-            <div style={s.content}>
-
-              {/* Top bar */}
+            {Toast}
+            <div style={{...s.content,...s.contentPt}}>
               <div style={s.header}>
                 <div style={s.logo}>IRONFORM</div>
-                <button style={s.btnDanger} onClick={cancelWorkout}>CANCEL</button>
+                <button style={s.btnDanger} onClick={cancelWorkout}>Cancel</button>
               </div>
 
-              {/* Overall progress */}
-              <div style={{marginBottom:20}}>
-                <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8}}>
-                  <span style={{...s.label,marginBottom:0}}>{activeWorkout.templateLabel} · Exercise {currentExIdx+1} of {exercises.length}</span>
-                  <span style={{fontFamily:"'Space Mono',monospace",fontSize:12,color:"#e8ff6b"}}>{totalDone}/{totalSets} sets</span>
+              {/* Progress */}
+              <div style={{marginBottom:18}}>
+                <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:6}}>
+                  <span style={{...s.label,marginBottom:0}}>{activeWorkout.templateLabel} · {currentExIdx+1} of {exercises.length}</span>
+                  <span style={{fontFamily:"'DM Mono',monospace",fontSize:11,color:"var(--gold)"}}>{totalDone}/{totalSets} sets</span>
                 </div>
-                <div style={{height:4,background:"rgba(255,255,255,0.06)",borderRadius:2,overflow:"hidden"}}>
-                  <div style={{height:"100%",width:`${progress*100}%`,background:"#e8ff6b",borderRadius:2,transition:"width 0.4s ease"}}/>
+                <div style={{height:3,background:"var(--surface2)",borderRadius:2,overflow:"hidden"}}>
+                  <div style={{height:"100%",width:`${progress*100}%`,background:"var(--gold)",borderRadius:2,transition:"width 0.4s ease"}}/>
                 </div>
-
-                {/* Exercise dots navigation */}
-                <div style={{display:"flex",gap:6,marginTop:12,flexWrap:"wrap"}}>
+                {/* Dot nav */}
+                <div style={{display:"flex",gap:5,marginTop:10,flexWrap:"wrap"}}>
                   {exercises.map((e,i)=>{
                     const exDone=setsForEx(e).every(Boolean);
                     const isCurrent=i===currentExIdx;
-                    return (
-                      <button key={i} onClick={()=>setCurrentExIdx(i)} style={{width:28,height:6,borderRadius:3,border:"none",cursor:"pointer",background:isCurrent?"#e8ff6b":exDone?"rgba(232,255,107,0.4)":"rgba(255,255,255,0.1)",transition:"all 0.2s",padding:0,flexShrink:0}}/>
-                    );
+                    return(<button key={i} onClick={()=>setCurrentExIdx(i)} style={{width:isCurrent?24:8,height:8,borderRadius:4,border:"none",cursor:"pointer",background:isCurrent?"var(--gold)":exDone?"rgba(200,146,42,0.5)":"var(--surface2)",transition:"all 0.2s",padding:0,flexShrink:0}}/>);
                   })}
                 </div>
               </div>
 
-              {/* Current exercise card */}
-              <div style={{...s.card,padding:24}}>
-                <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:8}}>
+              {/* Exercise card */}
+              <div style={{...s.card,padding:22,marginBottom:12}}>
+                <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:6}}>
                   <div>
-                    <div style={{fontWeight:900,fontSize:24,lineHeight:1.2}}>{ex.name}</div>
-                    <div style={{color:"#888",fontSize:14,marginTop:4}}>{ex.sets} sets × {ex.reps} reps</div>
+                    <div style={{fontFamily:"'Playfair Display',serif",fontWeight:700,fontSize:26,lineHeight:1.2,color:"var(--cream)"}}>{ex.name}</div>
+                    <div style={{fontFamily:"'DM Mono',monospace",color:"var(--muted)",fontSize:12,marginTop:4,letterSpacing:1}}>{ex.sets} sets · {ex.reps} reps</div>
                   </div>
-                  {allDone&&<div style={{color:"#e8ff6b",fontSize:28}}>✓</div>}
+                  {allDone&&<div style={{color:"var(--green2)",fontSize:26}}>✓</div>}
                 </div>
 
                 {lastRec&&(
-                  <div style={{fontSize:12,color:"#556",marginBottom:16,fontFamily:"'Space Mono',monospace",background:"rgba(255,255,255,0.03)",borderRadius:8,padding:"8px 12px"}}>
-                    LAST SESSION: {lastRec.exercise.weight}{lastRec.exercise.unit!=="reps"?lastRec.exercise.unit:""} · {new Date(lastRec.workout.date).toLocaleDateString("en-US",{month:"short",day:"numeric",year:"numeric"})}
+                  <div style={{fontFamily:"'DM Mono',monospace",fontSize:11,color:"var(--muted)",marginBottom:16,background:"var(--surface2)",borderRadius:6,padding:"8px 12px",letterSpacing:0.5}}>
+                    Last: {lastRec.exercise.weight}{lastRec.exercise.unit!=="reps"?" "+lastRec.exercise.unit:""} · {new Date(lastRec.workout.date).toLocaleDateString("en-US",{month:"short",day:"numeric",year:"numeric"})}
                   </div>
                 )}
 
-                {/* Weight adjuster */}
-                <div style={{display:"flex",alignItems:"center",gap:16,marginBottom:24,justifyContent:"center"}}>
+                {/* Weight */}
+                <div style={{display:"flex",alignItems:"center",gap:14,marginBottom:22,justifyContent:"center"}}>
                   <button style={s.setBtn} onClick={()=>adjustWeight(ex.id,-ex.increment)}>−</button>
-                  <div style={{textAlign:"center",minWidth:100}}>
-                    <div style={{fontSize:48,fontWeight:900,color:"#e8ff6b",lineHeight:1}}>{ex.weight}</div>
-                    <div style={{fontSize:11,color:"#555",letterSpacing:2,fontFamily:"'Space Mono',monospace",marginTop:2}}>{ex.unit==="reps"?"BODYWEIGHT":ex.unit.toUpperCase()}</div>
+                  <div style={{textAlign:"center",minWidth:90}}>
+                    <div style={{fontFamily:"'Playfair Display',serif",fontSize:52,fontWeight:900,color:"var(--gold)",lineHeight:1}}>{ex.weight}</div>
+                    <div style={{fontFamily:"'DM Mono',monospace",fontSize:10,color:"var(--muted)",letterSpacing:3,marginTop:2}}>{ex.unit==="reps"?"BODYWEIGHT":ex.unit.toUpperCase()}</div>
                   </div>
                   <button style={s.setBtn} onClick={()=>adjustWeight(ex.id,ex.increment)}>+</button>
                 </div>
 
                 {/* Set dots */}
-                <span style={s.label}>TAP TO COMPLETE SETS</span>
-                <div style={{display:"flex",gap:10,flexWrap:"wrap",marginBottom:16}}>
+                <span style={s.label}>Tap to complete sets</span>
+                <div style={{display:"flex",gap:8,flexWrap:"wrap",marginBottom:14}}>
                   {done.map((d,i)=>(
-                    <button key={i} style={s.setDot(d)} onClick={()=>toggleSet(ex.id,i)}>
-                      {d?"✓":i+1}
-                    </button>
+                    <button key={i} style={s.setDot(d)} onClick={()=>toggleSet(ex.id,i)}>{d?"✓":i+1}</button>
                   ))}
                 </div>
 
-                {/* Notes */}
-                <input style={{...s.input,fontSize:13,padding:"10px 14px"}} placeholder="Notes (optional)..." value={noteFor[ex.id]||""} onChange={e=>setNoteFor(p=>({...p,[ex.id]:e.target.value}))} />
+                <input style={{...s.input,fontSize:13,padding:"10px 12px"}} placeholder="Notes..." value={noteFor[ex.id]||""} onChange={e=>setNoteFor(p=>({...p,[ex.id]:e.target.value}))}/>
               </div>
 
-              {/* Navigation */}
-              <div style={{display:"grid",gridTemplateColumns:currentExIdx>0?"1fr 1fr":"1fr",gap:10,marginTop:4}}>
+              {/* Nav */}
+              <div style={{display:"grid",gridTemplateColumns:currentExIdx>0?"1fr 1fr":"1fr",gap:10}}>
                 {currentExIdx>0&&(
-                  <button style={{...s.btnOutline,width:"100%",textAlign:"center"}} onClick={()=>setCurrentExIdx(i=>i-1)}>
-                    ← PREV
-                  </button>
+                  <button style={{...s.btnOutline,width:"100%",textAlign:"center"}} onClick={()=>setCurrentExIdx(i=>i-1)}>← Prev</button>
                 )}
                 {!isLast?(
-                  <button style={s.btn} onClick={()=>setCurrentExIdx(i=>i+1)}>
-                    NEXT EXERCISE →
-                  </button>
+                  <button style={s.btn} onClick={()=>setCurrentExIdx(i=>i+1)}>Next →</button>
                 ):(
-                  <button style={{...s.btn,background:progress>=0.3?"#e8ff6b":"rgba(232,255,107,0.3)",color:progress>=0.3?"#0a0a0f":"#666",marginTop:0}} onClick={progress>=0.3?finishWorkout:undefined}>
-                    {progress>=1?"FINISH WORKOUT ✓":`FINISH EARLY (${totalDone}/${totalSets} sets)`}
+                  <button style={{...s.btn,background:progress>=0.3?"var(--gold)":"rgba(200,146,42,0.3)",color:progress>=0.3?"var(--bg)":"var(--muted)",marginTop:0}} onClick={progress>=0.3?finishWorkout:undefined}>
+                    {progress>=1?"Finish Workout ✓":`Finish Early (${totalDone}/${totalSets})`}
                   </button>
                 )}
               </div>
-
             </div>
           </div>
         );
       }
 
-      // HISTORY
-      if (screen==="history") return (
+      // WORKOUT SUMMARY
+      if(screen==="summary"&&summaryData){
+        const sd=summaryData;
+        const achievedGoals=sd.exercises.flatMap(ex=>ex.matchedGoals||[]);
+        return(
+          <div style={s.app}>
+            {renderModal()}{Toast}
+            <div style={{...s.content,...s.contentPt}}>
+              <div style={s.header}>
+                <div style={s.logo}>IRONFORM</div>
+                <span style={s.tag}>{sd.templateLabel}</span>
+              </div>
+
+              {/* Hero summary */}
+              <div style={{...s.cardWarm,textAlign:"center",padding:28,marginBottom:16}}>
+                <div style={{fontSize:36,marginBottom:8}}>🏆</div>
+                <div style={{fontFamily:"'Playfair Display',serif",fontSize:28,color:"var(--gold)",marginBottom:4}}>Session Complete</div>
+                <div style={{fontFamily:"'DM Mono',monospace",fontSize:11,color:"var(--muted)",letterSpacing:2}}>
+                  {new Date(sd.date).toLocaleDateString("en-US",{weekday:"long",month:"long",day:"numeric"})}
+                </div>
+                <div style={{display:"flex",justifyContent:"center",gap:24,marginTop:18}}>
+                  {[
+                    {label:"Exercises",value:sd.exercises.length},
+                    {label:"Sets Done",value:sd.exercises.reduce((a,e)=>a+e.completedSets,0)},
+                    {label:"PRs",value:sd.exercises.filter(e=>e.improved).length},
+                  ].map(stat=>(
+                    <div key={stat.label} style={{textAlign:"center"}}>
+                      <div style={{fontFamily:"'Playfair Display',serif",fontSize:26,color:"var(--cream)",lineHeight:1}}>{stat.value}</div>
+                      <div style={{fontFamily:"'DM Mono',monospace",fontSize:9,color:"var(--muted)",letterSpacing:2,marginTop:3,textTransform:"uppercase"}}>{stat.label}</div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Goal achievements */}
+              {achievedGoals.length>0&&(
+                <div style={{...s.card,background:"rgba(74,124,89,0.12)",border:"1px solid rgba(74,124,89,0.35)",marginBottom:10}}>
+                  <span style={{...s.label,color:"var(--green2)"}}>🎯 Goals Achieved This Session</span>
+                  {achievedGoals.map((g,i)=>{
+                    const def=allExercises.find(e=>e.id===g.exId);
+                    return(
+                      <div key={i} style={{fontFamily:"'DM Mono',monospace",fontSize:12,color:"var(--green2)",padding:"4px 0",borderBottom:"1px solid rgba(74,124,89,0.2)"}}>
+                        ✓ {def?.name||g.exId} — {g.targetWeight} lbs
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+
+              {/* Exercise breakdown */}
+              <span style={s.label}>Exercise Breakdown</span>
+              {sd.exercises.map(ex=>(
+                <div key={ex.id} style={{...s.card,marginBottom:8,padding:"13px 15px"}}>
+                  <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start"}}>
+                    <div style={{flex:1}}>
+                      <div style={{fontWeight:600,fontSize:15,color:"var(--cream)",marginBottom:3}}>
+                        {ex.name}
+                        {ex.improved&&<span style={{marginLeft:8,fontFamily:"'DM Mono',monospace",fontSize:9,color:"var(--green2)",background:"rgba(74,124,89,0.15)",border:"1px solid rgba(74,124,89,0.3)",borderRadius:3,padding:"2px 5px",letterSpacing:1}}>PR ↑</span>}
+                      </div>
+                      <div style={{fontFamily:"'DM Mono',monospace",fontSize:11,color:"var(--muted)"}}>
+                        {ex.unit==="reps"?"Bodyweight":`${ex.weight} ${ex.unit}`} · {ex.completedSets}/{ex.totalSets} sets
+                      </div>
+                      {ex.note&&<div style={{fontSize:12,color:"var(--cream2)",marginTop:5,fontStyle:"italic",opacity:0.8}}>"{ex.note}"</div>}
+                    </div>
+                    <div style={{fontFamily:"'DM Mono',monospace",fontSize:18,color:ex.completedSets===ex.totalSets?"var(--green2)":"var(--muted)",marginLeft:10}}>
+                      {ex.completedSets===ex.totalSets?"✓":"~"}
+                    </div>
+                  </div>
+                </div>
+              ))}
+
+              <button style={s.btn} onClick={()=>setScreen("home")}>Back to Home</button>
+              <button style={{...s.btnOutline,width:"100%",marginTop:8,textAlign:"center"}} onClick={()=>setScreen("history")}>View History</button>
+            </div>
+          </div>
+        );
+      }
+
+      // GOALS SCREEN
+      if(screen==="goals") return(
         <div style={s.app}>
-          <div style={s.bg}/><div style={s.grid}/>{renderModal()}{Toast}
-          <div style={s.content}>
+          {renderModal()}{Toast}
+          <div style={{...s.content,...s.contentPt}}>
             <div style={s.header}>
               <div style={s.logo}>IRONFORM</div>
-              <button style={s.btnSm} onClick={()=>{setPastDate("");setPastRows([{exId:"",weight:"",reps:"",sets:""}]);setModal("logPastWorkout");}}>+ LOG PAST</button>
+              <button style={s.btnSm} onClick={()=>setModal("addLiftGoal")}>+ New Goal</button>
             </div>
+
+            <h2 style={{fontFamily:"'Playfair Display',serif",fontSize:26,color:"var(--cream)",marginBottom:4}}>Lift Goals</h2>
+            <p style={{color:"var(--muted)",fontSize:13,marginBottom:20,fontFamily:"'DM Mono',monospace",letterSpacing:0.5,lineHeight:1.6}}>Set a target weight for any exercise. Track your progress and see a projected achievement date.</p>
+
+            {liftGoals.length===0?(
+              <div style={{...s.card,textAlign:"center",padding:40}}>
+                <div style={{fontSize:36,marginBottom:12}}>🎯</div>
+                <div style={{color:"var(--muted)",fontSize:14,marginBottom:18,fontFamily:"'DM Mono',monospace",letterSpacing:1}}>No goals set yet</div>
+                <button style={s.btn} onClick={()=>setModal("addLiftGoal")}>Set Your First Goal</button>
+              </div>
+            ):liftGoals.map(goal=>{
+              const def=allExercises.find(e=>e.id===goal.exId);
+              if(!def) return null;
+              const history=getLiftHistory(goal.exId);
+              const current=history.length>0?history[history.length-1].weight:null;
+              const pct=current?Math.min(100,Math.round((current/goal.targetWeight)*100)):0;
+              const projDate=history.length>=2?projectGoalDate(history,goal.targetWeight):null;
+              const achieved=current&&current>=goal.targetWeight;
+
+              return(
+                <div key={goal._id} style={{...s.card,marginBottom:12,padding:18}}>
+                  <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:12}}>
+                    <div>
+                      <div style={{fontWeight:700,fontSize:17,color:"var(--cream)",marginBottom:2}}>{def.name}</div>
+                      <div style={{fontFamily:"'DM Mono',monospace",fontSize:11,color:"var(--muted)"}}>
+                        Target: <span style={{color:"var(--gold)"}}>{goal.targetWeight} {def.unit}</span>
+                        {current&&<span> · Current: <span style={{color:"var(--cream2)"}}>{current} {def.unit}</span></span>}
+                      </div>
+                    </div>
+                    <button onClick={()=>doDelLiftGoal(goal._id)} style={{background:"none",border:"none",color:"var(--muted)",cursor:"pointer",fontSize:16,lineHeight:1,padding:"0 2px",flexShrink:0}}>×</button>
+                  </div>
+
+                  {/* Progress bar */}
+                  <div style={{marginBottom:12}}>
+                    <div style={{display:"flex",justifyContent:"space-between",marginBottom:4}}>
+                      <span style={{fontFamily:"'DM Mono',monospace",fontSize:9,color:"var(--muted)",letterSpacing:2,textTransform:"uppercase"}}>Progress</span>
+                      <span style={{fontFamily:"'DM Mono',monospace",fontSize:11,color:achieved?"var(--green2)":"var(--gold)"}}>{pct}%{achieved?" — Achieved!":""}</span>
+                    </div>
+                    <div style={{height:6,background:"var(--surface2)",borderRadius:3,overflow:"hidden"}}>
+                      <div style={{height:"100%",width:`${pct}%`,background:achieved?"var(--green2)":"var(--gold)",borderRadius:3,transition:"width 0.6s ease"}}/>
+                    </div>
+                  </div>
+
+                  {/* Chart */}
+                  {history.length>0?(
+                    <div style={{background:"var(--surface2)",borderRadius:8,padding:"12px 8px 6px",marginBottom:10}}>
+                      <MiniChart history={history} targetWeight={goal.targetWeight}/>
+                    </div>
+                  ):(
+                    <div style={{fontFamily:"'DM Mono',monospace",fontSize:11,color:"var(--muted)",textAlign:"center",padding:"12px 0",letterSpacing:1}}>
+                      Complete a workout with {def.name} to start tracking
+                    </div>
+                  )}
+
+                  {/* Projection */}
+                  {projDate&&!achieved&&(
+                    <div style={{fontFamily:"'DM Mono',monospace",fontSize:11,color:"var(--cream2)",background:"rgba(200,146,42,0.08)",border:"1px solid rgba(200,146,42,0.2)",borderRadius:6,padding:"8px 12px",letterSpacing:0.5}}>
+                      {projDate==="already achieved!"
+                        ?"✓ Already achieved based on your data"
+                        :`Projected: ${projDate.toLocaleDateString("en-US",{month:"long",day:"numeric",year:"numeric"})} (${Math.round((projDate-Date.now())/86400000)} days)`}
+                    </div>
+                  )}
+                  {!projDate&&history.length>=1&&history.length<2&&(
+                    <div style={{fontFamily:"'DM Mono',monospace",fontSize:10,color:"var(--muted)",letterSpacing:0.5,marginTop:4}}>
+                      Projection available after 2+ sessions with this exercise
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+          <NavBar active="goals"/>
+        </div>
+      );
+
+      // HISTORY
+      if(screen==="history") return(
+        <div style={s.app}>
+          {renderModal()}{Toast}
+          <div style={{...s.content,...s.contentPt}}>
+            <div style={s.header}>
+              <div style={s.logo}>IRONFORM</div>
+              <button style={s.btnSm} onClick={()=>{setPastDate("");setPastRows([{exId:"",weight:"",reps:"",sets:""}]);setModal("logPastWorkout");}}>+ Log Past</button>
+            </div>
+
             {workouts.length===0?(
-              <div style={{...s.card,textAlign:"center",padding:48}}>
-                <div style={{fontSize:40,marginBottom:12}}>📋</div>
-                <div style={{color:"#888",marginBottom:20}}>No workouts logged yet.</div>
-                <button style={s.btnOutline} onClick={()=>{setPastDate("");setPastRows([{exId:"",weight:"",reps:"",sets:""}]);setModal("logPastWorkout");}}>Import Past Workouts</button>
+              <div style={{...s.card,textAlign:"center",padding:40}}>
+                <div style={{fontSize:36,marginBottom:12}}>📋</div>
+                <div style={{color:"var(--muted)",marginBottom:20,fontFamily:"'DM Mono',monospace",fontSize:12,letterSpacing:1}}>No workouts yet</div>
+                <button style={s.btn} onClick={()=>{setPastDate("");setPastRows([{exId:"",weight:"",reps:"",sets:""}]);setModal("logPastWorkout");}}>Import Past Workouts</button>
               </div>
             ):[...workouts].reverse().map(w=>(
               <div key={w._id||w.date} style={s.card}>
-                <div style={{display:"flex",justifyContent:"space-between",marginBottom:12}}>
+                <div style={{display:"flex",justifyContent:"space-between",marginBottom:10}}>
                   <div>
-                    <div style={{fontWeight:800,fontSize:16}}>{new Date(w.date).toLocaleDateString("en-US",{weekday:"short",month:"short",day:"numeric",year:"numeric"})}</div>
-                    <div style={{color:"#888",fontSize:13}}>{w.exercises?.length} exercises</div>
+                    <div style={{fontWeight:700,fontSize:15,color:"var(--cream)"}}>{new Date(w.date).toLocaleDateString("en-US",{weekday:"short",month:"short",day:"numeric",year:"numeric"})}</div>
+                    <div style={{fontFamily:"'DM Mono',monospace",fontSize:11,color:"var(--muted)",marginTop:2}}>{w.exercises?.length} exercises</div>
                   </div>
-                  <div style={{display:"flex",gap:6,alignItems:"center",flexWrap:"wrap",justifyContent:"flex-end"}}>
-                    {w.templateLabel&&(()=>{const t=WORKOUT_TEMPLATES.find(x=>x.label===w.templateLabel);return <span style={{...s.tag,background:t?t.colorBg:"rgba(255,255,255,0.05)",border:`1px solid ${t?t.colorBorder:"rgba(255,255,255,0.1)"}`,color:t?t.color:"#aaa"}}>{w.templateLabel.toUpperCase()}</span>;})()}
-                    {w.imported&&<span style={{...s.tag,background:"rgba(100,180,255,0.1)",border:"1px solid rgba(100,180,255,0.3)",color:"#7ec8ff"}}>IMPORTED</span>}
-                    <span style={s.tag}>{w.completed?"DONE":"PARTIAL"}</span>
+                  <div style={{display:"flex",gap:5,alignItems:"center",flexWrap:"wrap",justifyContent:"flex-end"}}>
+                    {w.templateLabel&&(()=>{const t=WORKOUT_TEMPLATES.find(x=>x.label===w.templateLabel);return<span style={{...s.tag,background:t?t.accentDim:"var(--surface2)",border:`1px solid ${t?t.accentBorder:"var(--border)"}`,color:t?t.accent:"var(--cream2)"}}>{w.templateLabel}</span>;})()}
+                    {w.imported&&<span style={{...s.tag,background:"rgba(74,108,140,0.12)",border:"1px solid rgba(74,108,140,0.35)",color:"var(--blue2)"}}>Imported</span>}
                   </div>
                 </div>
                 {w.exercises?.map(ex=>(
-                  <div key={ex.id} style={{display:"flex",justifyContent:"space-between",padding:"6px 0",borderBottom:"1px solid rgba(255,255,255,0.04)",fontSize:14}}>
-                    <span style={{color:"#ccc"}}>{ex.name}</span>
-                    <span style={{color:"#e8ff6b",fontFamily:"'Space Mono',monospace",fontSize:13}}>{ex.unit==="reps"?`BW × ${ex.reps}`:`${ex.weight}${ex.unit} × ${ex.reps}`}{ex.sets>1?` × ${ex.sets}s`:""}</span>
+                  <div key={ex.id} style={{display:"flex",justifyContent:"space-between",padding:"5px 0",borderBottom:"1px solid var(--border)",fontSize:13}}>
+                    <span style={{color:"var(--cream2)"}}>{ex.name}</span>
+                    <span style={{fontFamily:"'DM Mono',monospace",fontSize:12,color:"var(--gold2)"}}>{ex.unit==="reps"?`BW × ${ex.reps}`:`${ex.weight}${ex.unit} × ${ex.reps}`}{ex.sets>1?` × ${ex.sets}s`:""}</span>
                   </div>
                 ))}
               </div>
@@ -763,126 +1081,141 @@
       );
 
       // PROFILE
-      if (screen==="profile") return (
+      if(screen==="profile") return(
         <div style={s.app}>
-          <div style={s.bg}/><div style={s.grid}/>{renderModal()}{Toast}
-          <div style={s.content}>
-            <div style={s.header}><div style={s.logo}>IRONFORM</div><span style={s.tag}>PROFILE</span></div>
-            <div style={s.accentCard}>
-              <div style={{display:"flex",alignItems:"center",gap:14,marginBottom:8}}>
-                {authUser.photoURL&&<img src={authUser.photoURL} alt="" style={{width:52,height:52,borderRadius:"50%",border:"2px solid rgba(232,255,107,0.4)"}}/>}
+          {renderModal()}{Toast}
+          <div style={{...s.content,...s.contentPt}}>
+            <div style={s.header}><div style={s.logo}>IRONFORM</div></div>
+
+            <div style={{...s.cardWarm,marginBottom:14}}>
+              <div style={{display:"flex",alignItems:"center",gap:14}}>
+                {authUser.photoURL&&<img src={authUser.photoURL} alt="" style={{width:52,height:52,borderRadius:"50%",border:"2px solid var(--gold)",opacity:0.9}}/>}
                 <div>
-                  <div style={{fontSize:22,fontWeight:900}}>{authUser.displayName||"Athlete"}</div>
-                  <div style={{color:"#888",fontSize:13}}>{authUser.email}</div>
+                  <div style={{fontFamily:"'Playfair Display',serif",fontSize:20,color:"var(--cream)"}}>{authUser.displayName||"Athlete"}</div>
+                  <div style={{fontFamily:"'DM Mono',monospace",fontSize:11,color:"var(--muted)",marginTop:2}}>{authUser.email}</div>
+                  <div style={{fontFamily:"'DM Mono',monospace",fontSize:11,color:"var(--muted)",marginTop:2}}>{workouts.length} sessions logged</div>
                 </div>
               </div>
-              <div style={{color:"#888",marginTop:4}}>Goal: <span style={{color:"#e8ff6b"}}>{GOALS[profile?.goal]?.label}</span> · {workouts.length} workouts logged</div>
             </div>
-            <div style={s.card}>
+
+            <div style={{...s.card,marginBottom:14}}>
               <span style={s.label}>Default Training Goal</span>
-              <div style={{display:"flex",flexDirection:"column",gap:8,marginTop:8}}>
+              <div style={{display:"flex",flexDirection:"column",gap:6,marginTop:6}}>
                 {Object.entries(GOALS).map(([key,g])=>(
                   <button key={key} onClick={async()=>{await saveProfile({...profile,goal:key});showToast("Goal updated!");}}
-                    style={{background:profile?.goal===key?"rgba(232,255,107,0.12)":"rgba(255,255,255,0.03)",border:profile?.goal===key?"1px solid rgba(232,255,107,0.4)":"1px solid rgba(255,255,255,0.08)",borderRadius:10,padding:"12px 16px",cursor:"pointer",color:profile?.goal===key?"#e8ff6b":"#888",textAlign:"left",fontFamily:"'DM Sans',sans-serif",fontSize:14,display:"flex",justifyContent:"space-between",alignItems:"center"}}>
-                    <div><div style={{fontWeight:600}}>{g.label}</div><div style={{fontSize:12,opacity:0.7}}>{g.description}</div></div>
-                    {profile?.goal===key&&<span>✓</span>}
+                    style={{background:profile?.goal===key?"rgba(200,146,42,0.12)":"var(--surface2)",border:profile?.goal===key?"1px solid rgba(200,146,42,0.45)":"1px solid var(--border)",borderRadius:8,padding:"12px 14px",cursor:"pointer",color:profile?.goal===key?"var(--gold)":"var(--muted)",textAlign:"left",fontSize:14,display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+                    <div><div style={{fontWeight:600,color:profile?.goal===key?"var(--cream)":"var(--cream2)"}}>{g.label}</div><div style={{fontFamily:"'DM Mono',monospace",fontSize:10,marginTop:2,letterSpacing:0.5,opacity:0.7}}>{g.description}</div></div>
+                    {profile?.goal===key&&<span style={{color:"var(--green2)"}}>✓</span>}
                   </button>
                 ))}
               </div>
             </div>
-            <div style={s.card}>
+
+            <div style={{...s.card,marginBottom:14}}>
               <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:12}}>
                 <span style={s.label}>Custom Exercises ({customExs.length})</span>
-                <button style={s.btnSm} onClick={()=>{setNewEx({name:"",category:"Chest",unit:"lbs",defaultWeight:45,increment:5});setModal("addExercise");}}>+ NEW</button>
+                <button style={s.btnSm} onClick={()=>{setNewEx({name:"",category:"Chest",unit:"lbs",defaultWeight:45,increment:5});setModal("addExercise");}}>+ New</button>
               </div>
-              {customExs.length===0?<p style={{color:"#555",fontSize:13}}>None yet.</p>:customExs.map(ex=>(
-                <div key={ex._fid||ex.id} style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"8px 0",borderBottom:"1px solid rgba(255,255,255,0.04)"}}>
-                  <div><span style={{fontSize:14}}>{ex.name}</span><div style={{fontSize:11,color:"#555"}}>{ex.category} · {ex.unit==="reps"?"bodyweight":`${ex.defaultWeight}${ex.unit}`}</div></div>
+              {customExs.length===0?<p style={{fontFamily:"'DM Mono',monospace",color:"var(--muted)",fontSize:12,letterSpacing:0.5}}>None yet.</p>:customExs.map(ex=>(
+                <div key={ex._fid||ex.id} style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"8px 0",borderBottom:"1px solid var(--border)"}}>
+                  <div><span style={{fontSize:14,color:"var(--cream)"}}>{ex.name}</span><div style={{fontFamily:"'DM Mono',monospace",fontSize:10,color:"var(--muted)",marginTop:2}}>{ex.category} · {ex.unit==="reps"?"bodyweight":`${ex.defaultWeight}${ex.unit}`}</div></div>
                 </div>
               ))}
             </div>
-            <button style={{...s.btnDanger,width:"100%",marginTop:8}} onClick={handleSignOut}>Sign Out</button>
+
+            <button style={{...s.btnDanger,width:"100%",marginTop:6}} onClick={handleSignOut}>Sign Out</button>
           </div>
           <NavBar active="profile"/>
         </div>
       );
 
       // HOME
-      const tiles = [
+      const tiles=[
         ...WORKOUT_TEMPLATES.map(tmpl=>{
           const last=[...workouts].reverse().find(w=>w.templateLabel===tmpl.label);
           const days=last?Math.floor((Date.now()-new Date(last.date))/86400000):null;
-          return {id:tmpl.id,emoji:tmpl.emoji,label:tmpl.label,sub:days!==null?(days===0?"Today":`${days}d ago`):"Never done",color:tmpl.color,colorBg:tmpl.colorBg,colorBorder:tmpl.colorBorder,
-            onClick:()=>{
-              setActiveTmpl(tmpl);setExtraExIds([]);
-              const sr=GOAL_SETS[profile?.goal||"hypertrophy"];
-              setPreviewSets(sr.sets);setPreviewReps(sr.reps);
-              setScreen("preset_preview");
-            }};
+          return{id:tmpl.id,emoji:tmpl.emoji,label:tmpl.label,sub:days!==null?(days===0?"Today":`${days}d ago`):"Never done",
+            accent:tmpl.accent,accentDim:tmpl.accentDim,accentBorder:tmpl.accentBorder,
+            onClick:()=>{setActiveTmpl(tmpl);setExtraExIds([]);const sr=GOAL_SETS[profile?.goal||"hypertrophy"];setPreviewSets(sr.sets);setPreviewReps(sr.reps);setScreen("preset_preview");}};
         }),
-        {id:"custom",emoji:"⚡",label:"Custom",sub:"Build your own",color:"#c084fc",colorBg:"rgba(192,132,252,0.08)",colorBorder:"rgba(192,132,252,0.35)",
+        {id:"custom",emoji:"⚡",label:"Custom",sub:"Build your own",
+          accent:"#8a6030",accentDim:"rgba(138,96,48,0.12)",accentBorder:"rgba(138,96,48,0.4)",
           onClick:()=>{setCustomExIds([]);setCustomGoal("hypertrophy");setScreen("custom_builder");}},
       ];
 
       const lastWorkout=workouts[workouts.length-1];
       const daysSinceLast=lastWorkout?Math.floor((Date.now()-new Date(lastWorkout.date))/86400000):null;
-      const streak=(()=>{if(!workouts.length)return 0;let s=0;const d=new Date();d.setHours(0,0,0,0);const dates=new Set(workouts.map(w=>new Date(w.date).toDateString()));const cur=new Date(d);while(dates.has(cur.toDateString())){s++;cur.setDate(cur.getDate()-1);}return s;})();
+      const streak=(()=>{if(!workouts.length)return 0;let s=0;const dates=new Set(workouts.map(w=>new Date(w.date).toDateString()));const d=new Date();d.setHours(0,0,0,0);while(dates.has(d.toDateString())){s++;d.setDate(d.getDate()-1);}return s;})();
 
-      return (
+      return(
         <div style={s.app}>
-          <div style={s.bg}/><div style={s.grid}/>
-          {/* Modals always rendered on home screen too — this was the bug fix */}
-          {renderModal()}
-          {Toast}
-          <div style={s.content}>
+          {renderModal()}{Toast}
+          <div style={{...s.content,...s.contentPt}}>
             <div style={s.header}>
               <div style={s.logo}>IRONFORM</div>
-              {authUser.photoURL&&<img src={authUser.photoURL} alt="" style={{width:30,height:30,borderRadius:"50%",border:"1px solid rgba(232,255,107,0.3)",cursor:"pointer"}} onClick={()=>setScreen("profile")}/>}
+              {authUser.photoURL&&<img src={authUser.photoURL} alt="" style={{width:30,height:30,borderRadius:"50%",border:"1px solid var(--border2)",cursor:"pointer",opacity:0.85}} onClick={()=>setScreen("profile")}/>}
             </div>
 
-            <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:10,marginBottom:24}}>
-              {[{label:"WORKOUTS",value:workouts.length},{label:"DAYS REST",value:daysSinceLast===null?"—":daysSinceLast},{label:"STREAK",value:streak}].map(stat=>(
-                <div key={stat.label} style={{...s.card,padding:16,textAlign:"center",marginBottom:0}}>
-                  <div style={{fontSize:26,fontWeight:900,color:"#e8ff6b",lineHeight:1}}>{stat.value}</div>
-                  <span style={{...s.label,marginBottom:0,marginTop:4}}>{stat.label}</span>
+            {/* Stats row */}
+            <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:8,marginBottom:20}}>
+              {[{label:"Sessions",value:workouts.length},{label:"Days Rest",value:daysSinceLast===null?"—":daysSinceLast},{label:"Streak",value:streak}].map(stat=>(
+                <div key={stat.label} style={{...s.card,padding:14,textAlign:"center",marginBottom:0}}>
+                  <div style={{fontFamily:"'Playfair Display',serif",fontSize:24,color:"var(--gold)",lineHeight:1}}>{stat.value}</div>
+                  <span style={{...s.label,marginBottom:0,marginTop:4,fontSize:8}}>{stat.label}</span>
                 </div>
               ))}
             </div>
 
-            <span style={s.label}>START A WORKOUT</span>
-            <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12,marginBottom:20}}>
+            {/* Decorative rule */}
+            <div style={{display:"flex",alignItems:"center",gap:12,marginBottom:14}}>
+              <div style={{flex:1,height:1,background:"var(--border)"}}/>
+              <span style={{fontFamily:"'DM Mono',monospace",fontSize:9,letterSpacing:3,color:"var(--muted)",textTransform:"uppercase"}}>Begin Session</span>
+              <div style={{flex:1,height:1,background:"var(--border)"}}/>
+            </div>
+
+            {/* 2×2 tile grid */}
+            <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginBottom:16}}>
               {tiles.map(tile=>(
-                <button key={tile.id} onClick={tile.onClick} style={{background:tile.colorBg,border:`1px solid ${tile.colorBorder}`,borderRadius:18,padding:"24px 16px",cursor:"pointer",textAlign:"center",display:"flex",flexDirection:"column",alignItems:"center",gap:8,width:"100%"}}>
-                  <span style={{fontSize:34}}>{tile.emoji}</span>
-                  <span style={{fontFamily:"'Space Mono',monospace",fontWeight:700,fontSize:13,color:tile.color,letterSpacing:1,lineHeight:1.3}}>{tile.label.toUpperCase()}</span>
-                  <span style={{fontSize:11,color:"#555",fontFamily:"'Space Mono',monospace"}}>{tile.sub}</span>
+                <button key={tile.id} onClick={tile.onClick} style={{background:tile.accentDim,border:`1px solid ${tile.accentBorder}`,borderRadius:12,padding:"22px 14px",cursor:"pointer",textAlign:"center",display:"flex",flexDirection:"column",alignItems:"center",gap:7,width:"100%"}}>
+                  <span style={{fontSize:30}}>{tile.emoji}</span>
+                  <span style={{fontFamily:"'Playfair Display',serif",fontWeight:700,fontSize:14,color:tile.accent,lineHeight:1.2}}>{tile.label}</span>
+                  <span style={{fontFamily:"'DM Mono',monospace",fontSize:9,color:"var(--muted)",letterSpacing:1,textTransform:"uppercase"}}>{tile.sub}</span>
                 </button>
               ))}
             </div>
 
-            <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginBottom:16}}>
-              <button style={{...s.card,marginBottom:0,cursor:"pointer",textAlign:"center",padding:14,border:"1px solid rgba(100,180,255,0.2)",background:"rgba(100,180,255,0.05)"}}
+            {/* Divider */}
+            <div style={{display:"flex",alignItems:"center",gap:12,marginBottom:14}}>
+              <div style={{flex:1,height:1,background:"var(--border)"}}/>
+              <span style={{fontFamily:"'DM Mono',monospace",fontSize:9,letterSpacing:3,color:"var(--muted)",textTransform:"uppercase"}}>Quick Actions</span>
+              <div style={{flex:1,height:1,background:"var(--border)"}}/>
+            </div>
+
+            {/* Quick actions */}
+            <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,marginBottom:14}}>
+              <button style={{...s.card,marginBottom:0,cursor:"pointer",textAlign:"center",padding:14,border:"1px solid rgba(74,108,140,0.3)",background:"rgba(74,108,140,0.08)"}}
                 onClick={()=>{setPastDate("");setPastRows([{exId:"",weight:"",reps:"",sets:""}]);setModal("logPastWorkout");}}>
-                <div style={{fontSize:20,marginBottom:4}}>📥</div>
-                <div style={{fontSize:11,fontFamily:"'Space Mono',monospace",color:"#7ec8ff",letterSpacing:1}}>LOG PAST</div>
+                <div style={{fontSize:18,marginBottom:4}}>📥</div>
+                <div style={{fontFamily:"'DM Mono',monospace",fontSize:9,color:"var(--blue2)",letterSpacing:2,textTransform:"uppercase"}}>Log Past</div>
               </button>
-              <button style={{...s.card,marginBottom:0,cursor:"pointer",textAlign:"center",padding:14,border:"1px solid rgba(192,132,252,0.2)",background:"rgba(192,132,252,0.05)"}}
+              <button style={{...s.card,marginBottom:0,cursor:"pointer",textAlign:"center",padding:14,border:"1px solid var(--border)",background:"var(--surface)"}}
                 onClick={()=>{setNewEx({name:"",category:"Chest",unit:"lbs",defaultWeight:45,increment:5});setModal("addExercise");}}>
-                <div style={{fontSize:20,marginBottom:4}}>➕</div>
-                <div style={{fontSize:11,fontFamily:"'Space Mono',monospace",color:"#c084fc",letterSpacing:1}}>NEW LIFT</div>
+                <div style={{fontSize:18,marginBottom:4}}>➕</div>
+                <div style={{fontFamily:"'DM Mono',monospace",fontSize:9,color:"var(--muted)",letterSpacing:2,textTransform:"uppercase"}}>New Lift</div>
               </button>
             </div>
 
+            {/* Last session */}
             {lastWorkout&&(
               <div style={s.card}>
-                <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:12}}>
-                  <span style={s.label}>LAST SESSION</span>
-                  <span style={{fontSize:12,color:"#555"}}>{new Date(lastWorkout.date).toLocaleDateString("en-US",{month:"short",day:"numeric"})}</span>
+                <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:10}}>
+                  <span style={s.label}>Last Session</span>
+                  <span style={{fontFamily:"'DM Mono',monospace",fontSize:11,color:"var(--muted)"}}>{new Date(lastWorkout.date).toLocaleDateString("en-US",{month:"short",day:"numeric"})}</span>
                 </div>
                 {lastWorkout.exercises?.slice(0,4).map(ex=>(
-                  <div key={ex.id} style={{display:"flex",justifyContent:"space-between",padding:"6px 0",borderBottom:"1px solid rgba(255,255,255,0.04)",fontSize:14}}>
-                    <span style={{color:"#aaa"}}>{ex.name}</span>
-                    <span style={{color:"#e8ff6b",fontFamily:"'Space Mono',monospace",fontSize:13}}>{ex.unit==="reps"?`BW × ${ex.reps}`:`${ex.weight}${ex.unit} × ${ex.reps}`}</span>
+                  <div key={ex.id} style={{display:"flex",justifyContent:"space-between",padding:"5px 0",borderBottom:"1px solid var(--border)",fontSize:13}}>
+                    <span style={{color:"var(--cream2)"}}>{ex.name}</span>
+                    <span style={{fontFamily:"'DM Mono',monospace",fontSize:12,color:"var(--gold2)"}}>{ex.unit==="reps"?`BW × ${ex.reps}`:`${ex.weight}${ex.unit} × ${ex.reps}`}</span>
                   </div>
                 ))}
               </div>
