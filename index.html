@@ -169,11 +169,11 @@
     };
 
     const WORKOUT_TEMPLATES = [
-      {id:"push",label:"Push Day",emoji:"💪",accent:"#c8922a",accentDim:"rgba(200,146,42,0.12)",accentBorder:"rgba(200,146,42,0.4)",
+      {id:"push",label:"Push Day",emoji:"💪",accent:"#4a6c8c",accentDim:"rgba(74,108,140,0.15)",accentBorder:"rgba(74,108,140,0.45)",
         exercises:["bench","incline_db_press","cable_fly","lateral_raise","oh_db_press","tricep_rope","assisted_dip"]},
       {id:"pull",label:"Pull Day",emoji:"🏋️",accent:"#4a6c8c",accentDim:"rgba(74,108,140,0.15)",accentBorder:"rgba(74,108,140,0.45)",
         exercises:["lat_pulldown","seated_cable_row","single_arm_row","preacher_curl","rope_hammer_curl"]},
-      {id:"legs",label:"Leg Day",emoji:"🦵",accent:"#c44b2b",accentDim:"rgba(196,75,43,0.12)",accentBorder:"rgba(196,75,43,0.4)",
+      {id:"legs",label:"Leg Day",emoji:"🦵",accent:"#4a6c8c",accentDim:"rgba(74,108,140,0.15)",accentBorder:"rgba(74,108,140,0.45)",
         exercises:["squat","rdl","leg_press","calf_raise","glute_drive","hip_adduction","leg_curl"]},
     ];
 
@@ -1139,7 +1139,7 @@
             onClick:()=>{setActiveTmpl(tmpl);setExtraExIds([]);const sr=GOAL_SETS[profile?.goal||"hypertrophy"];setPreviewSets(sr.sets);setPreviewReps(sr.reps);setScreen("preset_preview");}};
         }),
         {id:"custom",emoji:"⚡",label:"Custom",sub:"Build your own",
-          accent:"#8a6030",accentDim:"rgba(138,96,48,0.12)",accentBorder:"rgba(138,96,48,0.4)",
+          accent:"#4a6c8c",accentDim:"rgba(74,108,140,0.15)",accentBorder:"rgba(74,108,140,0.45)",
           onClick:()=>{setCustomExIds([]);setCustomGoal("hypertrophy");setScreen("custom_builder");}},
       ];
 
