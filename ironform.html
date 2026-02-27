@@ -1,0 +1,770 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0" />
+  <title>IRONFORM</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=DM+Sans:wght@400;600;700;800;900&display=swap" rel="stylesheet" />
+
+  <!-- Firebase SDKs -->
+  <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
+
+  <!-- React -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.5/babel.min.js"></script>
+
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    html, body, #root { height: 100%; }
+    body { background: #0a0a0f; color: #f0f0e8; font-family: 'DM Sans', sans-serif; -webkit-font-smoothing: antialiased; }
+    input, select, button, textarea { font-family: inherit; }
+    select option { background: #1a1a2e; color: #f0f0e8; }
+    ::-webkit-scrollbar { width: 4px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb { background: rgba(232,255,107,0.2); border-radius: 2px; }
+    * { -webkit-tap-highlight-color: transparent; }
+  </style>
+</head>
+<body>
+  <div id="root"></div>
+
+  <script type="text/babel">
+    const { useState, useEffect, useRef, useCallback } = React;
+
+    // ── FIREBASE CONFIG ─────────────────────────────────────────────────────────
+    // PASTE YOUR 6 VALUES FROM FIREBASE CONSOLE HERE:
+    const FIREBASE_CONFIG = {
+      apiKey:            "AIzaSyCQDJhJFUCuTQrymlmOx3Sgv54UUrMPekY",
+      authDomain:        "trainerdata-c5e64.firebaseapp.com",
+      projectId:         "trainerdata-c5e64",
+      storageBucket:     "trainerdata-c5e64.firebasestorage.app",
+      messagingSenderId: "71847069277",
+      appId:             "1:71847069277:web:2dde9bfd125c5d6c466fb4",
+    };
+    // ───────────────────────────────────────────────────────────────────────────
+
+    // Init Firebase
+    if (!firebase.apps.length) firebase.initializeApp(FIREBASE_CONFIG);
+    const auth = firebase.auth();
+    const db   = firebase.firestore();
+    const googleProvider = new firebase.auth.GoogleAuthProvider();
+    auth.setPersistence(firebase.auth.Auth.Persistence.LOCAL);
+
+    // DB helpers
+    const fbGetProfile   = async (uid) => { const d = await db.collection("users").doc(uid).get(); return d.exists ? d.data() : null; };
+    const fbSetProfile   = async (uid, data) => db.collection("users").doc(uid).set(data, { merge: true });
+    const fbGetWorkouts  = async (uid) => { const s = await db.collection("users").doc(uid).collection("workouts").orderBy("date").get(); return s.docs.map(d => ({...d.data(), _id: d.id})); };
+    const fbAddWorkout   = async (uid, w) => { const r = await db.collection("users").doc(uid).collection("workouts").add(w); return r.id; };
+    const fbGetCustomExs = async (uid) => { const s = await db.collection("users").doc(uid).collection("customExercises").get(); return s.docs.map(d => ({...d.data(), _fid: d.id})); };
+    const fbAddCustomEx  = async (uid, ex) => { const r = await db.collection("users").doc(uid).collection("customExercises").add(ex); return r.id; };
+
+    // ── DATA ────────────────────────────────────────────────────────────────────
+    const BUILTIN_EXERCISES = [
+      { id:"bench",            name:"Bench Press",                      category:"Chest",     unit:"lbs", defaultWeight:115,    increment:5 },
+      { id:"decline_press",    name:"Decline Press",                    category:"Chest",     unit:"lbs", defaultWeight:65,     increment:5 },
+      { id:"incline_db_press", name:"Incline Dumbbell Press",           category:"Chest",     unit:"lbs", defaultWeight:30,     increment:2.5 },
+      { id:"chest_fly",        name:"Chest Fly Machine",                category:"Chest",     unit:"lbs", defaultWeight:55,     increment:5 },
+      { id:"assisted_dip",     name:"Assisted Dip",                     category:"Chest",     unit:"lbs", defaultWeight:118.75, increment:2.5 },
+      { id:"lat_pulldown",     name:"Lat Pull Down",                    category:"Back",      unit:"lbs", defaultWeight:105,    increment:5 },
+      { id:"row",              name:"Row",                              category:"Back",      unit:"lbs", defaultWeight:85,     increment:5 },
+      { id:"high_row",         name:"High Row Machine",                 category:"Back",      unit:"lbs", defaultWeight:60,     increment:5 },
+      { id:"rdl",              name:"Romanian Deadlifts",               category:"Back",      unit:"lbs", defaultWeight:95,     increment:5 },
+      { id:"face_pull",        name:"Face Pulls",                       category:"Back",      unit:"lbs", defaultWeight:22.5,   increment:2.5 },
+      { id:"squat",            name:"Squat",                            category:"Legs",      unit:"lbs", defaultWeight:115,    increment:5 },
+      { id:"leg_press",        name:"Leg Press",                        category:"Legs",      unit:"lbs", defaultWeight:220,    increment:10 },
+      { id:"leg_curl",         name:"Leg Curl",                         category:"Legs",      unit:"lbs", defaultWeight:105,    increment:5 },
+      { id:"calf_raise",       name:"Calf Raise",                       category:"Legs",      unit:"lbs", defaultWeight:50,     increment:5 },
+      { id:"hip_adduction",    name:"Hip Adduction",                    category:"Legs",      unit:"lbs", defaultWeight:130,    increment:5 },
+      { id:"glute_drive",      name:"Glute Drive",                      category:"Legs",      unit:"lbs", defaultWeight:95,     increment:5 },
+      { id:"oh_db_press",      name:"Overhead Dumbbell Shoulder Press", category:"Shoulders", unit:"lbs", defaultWeight:10,     increment:2.5 },
+      { id:"lateral_raise",    name:"Dumbbell Lateral Raises",          category:"Shoulders", unit:"lbs", defaultWeight:10,     increment:2.5 },
+      { id:"shrugs",           name:"Shoulder Shrugs",                  category:"Shoulders", unit:"lbs", defaultWeight:17.5,   increment:2.5 },
+      { id:"press_machine",    name:"Press Machine",                    category:"Shoulders", unit:"lbs", defaultWeight:20,     increment:5 },
+      { id:"cable_curl",       name:"Cable Curl",                       category:"Arms",      unit:"lbs", defaultWeight:22.5,   increment:2.5 },
+      { id:"one_arm_curl",     name:"One Arm Cable Curl",               category:"Arms",      unit:"lbs", defaultWeight:32.5,   increment:2.5 },
+      { id:"hammer_curl",      name:"Hammer Curl",                      category:"Arms",      unit:"lbs", defaultWeight:12.5,   increment:2.5 },
+      { id:"db_bicep_curl",    name:"Seated Dumbbell Bicep Curls",      category:"Arms",      unit:"lbs", defaultWeight:15,     increment:2.5 },
+      { id:"preacher_curl",    name:"Preacher Curl Machine",            category:"Arms",      unit:"lbs", defaultWeight:10,     increment:2.5 },
+      { id:"tricep_pushdown",  name:"Tricep Push Down",                 category:"Arms",      unit:"lbs", defaultWeight:32.5,   increment:2.5 },
+      { id:"one_arm_tricep",   name:"One Arm Cable Tricep",             category:"Arms",      unit:"lbs", defaultWeight:12.5,   increment:2.5 },
+      { id:"cable_ab_twist",   name:"Cable Ab Twist",                   category:"Core",      unit:"lbs", defaultWeight:12.5,   increment:2.5 },
+      { id:"hanging_leg_lift", name:"Hanging Leg Lifts",                category:"Core",      unit:"reps",defaultWeight:0,      increment:1 },
+    ];
+
+    const CATEGORIES = ["Chest","Back","Legs","Shoulders","Arms","Core","Cardio","Other"];
+
+    const GOALS = {
+      strength:    { label:"Strength",     increment:1.05,  description:"Heavier weight, lower reps" },
+      hypertrophy: { label:"Muscle Growth",increment:1.025, description:"Moderate weight, higher reps" },
+      endurance:   { label:"Endurance",    increment:1.015, description:"Lighter weight, high reps" },
+      maintain:    { label:"Maintain",     increment:1.0,   description:"Keep current level" },
+    };
+
+    const GOAL_SETS = {
+      strength:    { sets:5, reps:5 },
+      hypertrophy: { sets:4, reps:10 },
+      endurance:   { sets:3, reps:15 },
+      maintain:    { sets:3, reps:8 },
+    };
+
+    const WORKOUT_TEMPLATES = [
+      { id:"push", label:"Push Day", emoji:"💪", color:"#e8ff6b", colorBg:"rgba(232,255,107,0.08)", colorBorder:"rgba(232,255,107,0.35)",
+        exercises:["bench","incline_db_press","chest_fly","lateral_raise","oh_db_press","tricep_pushdown","assisted_dip"] },
+      { id:"pull", label:"Pull Day", emoji:"🏋️", color:"#7ec8ff", colorBg:"rgba(126,200,255,0.08)", colorBorder:"rgba(126,200,255,0.35)",
+        exercises:["lat_pulldown","row","face_pull","hammer_curl","preacher_curl"] },
+      { id:"legs", label:"Leg Day",  emoji:"🦵", color:"#ff9f6b", colorBg:"rgba(255,159,107,0.08)", colorBorder:"rgba(255,159,107,0.35)",
+        exercises:["squat","rdl","leg_press","glute_drive","hip_adduction"] },
+    ];
+
+    function safeProgressWeight(current, goal, weeksSince, unit) {
+      if (goal === "maintain") return current;
+      const factor = Math.pow(GOALS[goal].increment, weeksSince || 1);
+      const proposed = Math.round((current * factor) / 2.5) * 2.5;
+      const maxInc = ({ lbs:10, reps:2 }[unit] || 5) * (weeksSince || 1);
+      return Math.min(proposed, current + maxInc);
+    }
+
+    // ── MODAL ───────────────────────────────────────────────────────────────────
+    function Modal({ children, onClose }) {
+      return (
+        <div onClick={onClose} style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.85)",zIndex:300,display:"flex",alignItems:"flex-end",justifyContent:"center"}}>
+          <div onClick={e=>e.stopPropagation()} style={{background:"#111118",border:"1px solid rgba(232,255,107,0.15)",borderRadius:"20px 20px 0 0",width:"100%",maxWidth:480,maxHeight:"90vh",overflowY:"auto",padding:24,paddingBottom:40}}>
+            {children}
+          </div>
+        </div>
+      );
+    }
+
+    // ── MAIN APP ────────────────────────────────────────────────────────────────
+    function App() {
+      const [authUser,  setAuthUser]  = useState(undefined);
+      const [screen,    setScreen]    = useState("home");
+      const [profile,   setProfileS]  = useState(null);
+      const [workouts,  setWorkouts]  = useState([]);
+      const [customExs, setCustomExs] = useState([]);
+      const [activeWorkout, setActiveWorkout] = useState(null);
+      const [dataLoading,   setDataLoading]   = useState(false);
+      const [setupStep,  setSetupStep]  = useState(0);
+      const [setupData,  setSetupData]  = useState({name:"",goal:"strength",exercises:[]});
+      const [completedSets, setCompletedSets] = useState({});
+      const [notesMap,   setNotesMap]  = useState({});
+      const [toast,      setToast]     = useState(null);
+      const [modal,      setModal]     = useState(null);
+      const [newEx,      setNewEx]     = useState({name:"",category:"Chest",unit:"lbs",defaultWeight:45,increment:5});
+      const [pastDate,   setPastDate]  = useState("");
+      const [pastRows,   setPastRows]  = useState([{exId:"",weight:"",reps:"",sets:""}]);
+      const [signInErr,  setSignInErr] = useState(null);
+      const [signingIn,  setSigningIn] = useState(false);
+      const timerRef = useRef(null);
+
+      const allExercises = [...BUILTIN_EXERCISES, ...customExs];
+
+      // ── AUTH ──────────────────────────────────────────────────────
+      useEffect(() => {
+        // Handle redirect result first
+        auth.getRedirectResult().then(result => {
+          if (result && result.user) {
+            setAuthUser(result.user);
+            loadData(result.user.uid);
+          }
+        }).catch(e => console.error("Redirect result:", e));
+
+        // Listen for auth state
+        const unsub = auth.onAuthStateChanged(async user => {
+          setAuthUser(user || null);
+          if (user) loadData(user.uid);
+        });
+        return () => unsub();
+      }, []);
+
+      const loadData = async (uid) => {
+        setDataLoading(true);
+        try {
+          const [prof, wkts, cexs] = await Promise.all([
+            fbGetProfile(uid),
+            fbGetWorkouts(uid),
+            fbGetCustomExs(uid),
+          ]);
+          if (prof) setProfileS(prof);
+          setWorkouts(wkts);
+          setCustomExs(cexs);
+        } catch(e) { console.error("Load error:", e); }
+        setDataLoading(false);
+      };
+
+      const handleSignIn = async () => {
+        setSignInErr(null);
+        setSigningIn(true);
+        try {
+          await auth.signInWithRedirect(googleProvider);
+        } catch(e) {
+          setSignInErr("Sign-in failed: " + (e.message || e.code));
+          setSigningIn(false);
+        }
+      };
+
+      const handleSignOut = async () => {
+        await auth.signOut();
+        setProfileS(null); setWorkouts([]); setCustomExs([]);
+        setScreen("home");
+      };
+
+      // ── TOAST ─────────────────────────────────────────────────────
+      const showToast = (msg) => {
+        setToast(msg);
+        clearTimeout(timerRef.current);
+        timerRef.current = setTimeout(() => setToast(null), 3000);
+      };
+
+      // ── SAVE HELPERS ──────────────────────────────────────────────
+      const saveProfile = async (p) => {
+        setProfileS(p);
+        if (authUser) await fbSetProfile(authUser.uid, p);
+      };
+
+      const addWorkout = async (w) => {
+        if (authUser) {
+          const id = await fbAddWorkout(authUser.uid, w);
+          w = {...w, _id: id};
+        }
+        setWorkouts(prev => [...prev, w].sort((a,b) => new Date(a.date)-new Date(b.date)));
+        return w;
+      };
+
+      const addCustomEx = async (ex) => {
+        if (authUser) {
+          const fid = await fbAddCustomEx(authUser.uid, ex);
+          ex = {...ex, _fid: fid};
+        }
+        setCustomExs(prev => [...prev, ex]);
+        return ex;
+      };
+
+      // ── WORKOUT LOGIC ─────────────────────────────────────────────
+      const getLastForExercise = (exId) => {
+        for (let i = workouts.length-1; i >= 0; i--) {
+          const ex = workouts[i].exercises?.find(e => e.id===exId);
+          if (ex) return { workout: workouts[i], exercise: ex };
+        }
+        return null;
+      };
+
+      const buildWorkout = (exIdList=null, templateLabel=null) => {
+        const ids = exIdList || profile?.exercises || [];
+        const goal = profile?.goal || "strength";
+        const sr = GOAL_SETS[goal];
+        const exercises = ids.map(exId => {
+          const def = allExercises.find(e => e.id===exId);
+          if (!def) return null;
+          const last = getLastForExercise(exId);
+          let weight = def.defaultWeight;
+          if (last) {
+            const days = (Date.now()-new Date(last.workout.date))/86400000;
+            const weeks = Math.max(1, Math.round(days/7));
+            weight = safeProgressWeight(last.exercise.weight, goal, weeks, def.unit);
+          }
+          return {id:exId, name:def.name, category:def.category, weight, unit:def.unit, sets:sr.sets, reps:sr.reps, increment:def.increment};
+        }).filter(Boolean);
+        return {date:new Date().toISOString(), exercises, completed:false, templateLabel};
+      };
+
+      const startWorkout = (template=null) => {
+        setActiveWorkout(template ? buildWorkout(template.exercises, template.label) : buildWorkout());
+        setCompletedSets({});
+        setNotesMap({});
+        setScreen("workout");
+      };
+
+      const finishWorkout = async () => {
+        await addWorkout({...activeWorkout, completed:true});
+        setActiveWorkout(null);
+        showToast("Workout saved! Great work 💪");
+        setScreen("home");
+      };
+
+      const toggleSet = (exId, i) => setCompletedSets(p => ({...p, [`${exId}_${i}`]: !p[`${exId}_${i}`]}));
+      const adjustWeight = (exId, delta) => setActiveWorkout(p => ({...p, exercises:p.exercises.map(e => e.id===exId ? {...e, weight:Math.max(0,e.weight+delta)} : e)}));
+
+      const totalSets = activeWorkout ? activeWorkout.exercises.reduce((a,e)=>a+e.sets,0) : 0;
+      const totalDone = activeWorkout ? activeWorkout.exercises.reduce((a,ex) => {
+        for(let i=0;i<ex.sets;i++) if(completedSets[`${ex.id}_${i}`]) a++;
+        return a;
+      },0) : 0;
+
+      // ── SAVE CUSTOM EXERCISE ──────────────────────────────────────
+      const saveNewExercise = async () => {
+        if (!newEx.name.trim()) return;
+        const ex = {id:"custom_"+Date.now(), name:newEx.name.trim(), category:newEx.category, unit:newEx.unit, defaultWeight:Number(newEx.defaultWeight)||0, increment:Number(newEx.increment)||5, custom:true};
+        const saved = await addCustomEx(ex);
+        if (profile) await saveProfile({...profile, exercises:[...(profile.exercises||[]), saved.id]});
+        setNewEx({name:"",category:"Chest",unit:"lbs",defaultWeight:45,increment:5});
+        setModal(null);
+        showToast(ex.name + " added!");
+      };
+
+      // ── LOG PAST WORKOUT ──────────────────────────────────────────
+      const savePastWorkout = async () => {
+        if (!pastDate) return;
+        const exercises = pastRows.filter(r=>r.exId&&r.weight!==""&&r.reps!=="").map(r => {
+          const def = allExercises.find(e=>e.id===r.exId);
+          return {id:r.exId, name:def?.name||r.exId, category:def?.category||"Other", weight:Number(r.weight), unit:def?.unit||"lbs", sets:Number(r.sets)||3, reps:Number(r.reps), increment:def?.increment||5};
+        });
+        if (!exercises.length) return;
+        await addWorkout({date:new Date(pastDate+"T12:00:00").toISOString(), exercises, completed:true, imported:true});
+        setPastDate(""); setPastRows([{exId:"",weight:"",reps:"",sets:""}]);
+        setModal(null);
+        showToast("Past workout imported!");
+      };
+
+      // ── STYLES ────────────────────────────────────────────────────
+      const s = {
+        app:       {minHeight:"100vh",background:"#0a0a0f",color:"#f0f0e8",fontFamily:"'DM Sans',sans-serif",position:"relative"},
+        bg:        {position:"fixed",inset:0,background:"radial-gradient(ellipse 80% 60% at 50% -20%, #1a1a2e 0%, #0a0a0f 60%)",zIndex:0,pointerEvents:"none"},
+        grid:      {position:"fixed",inset:0,backgroundImage:"linear-gradient(rgba(232,255,107,0.03) 1px,transparent 1px),linear-gradient(90deg,rgba(232,255,107,0.03) 1px,transparent 1px)",backgroundSize:"60px 60px",zIndex:0,pointerEvents:"none"},
+        content:   {position:"relative",zIndex:1,maxWidth:480,margin:"0 auto",padding:"24px 20px 110px"},
+        header:    {display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:32,paddingTop:8},
+        logo:      {fontFamily:"'Space Mono',monospace",fontSize:20,fontWeight:700,color:"#e8ff6b",letterSpacing:2},
+        card:      {background:"rgba(255,255,255,0.04)",border:"1px solid rgba(232,255,107,0.12)",borderRadius:16,padding:24,marginBottom:16},
+        accentCard:{background:"rgba(232,255,107,0.08)",border:"1px solid rgba(232,255,107,0.3)",borderRadius:16,padding:24,marginBottom:16},
+        btn:       {background:"#e8ff6b",color:"#0a0a0f",border:"none",borderRadius:12,padding:"14px 28px",fontFamily:"'Space Mono',monospace",fontWeight:700,fontSize:14,letterSpacing:1,cursor:"pointer",width:"100%",marginTop:8,display:"block"},
+        btnOutline:{background:"transparent",color:"#e8ff6b",border:"1px solid rgba(232,255,107,0.4)",borderRadius:12,padding:"12px 24px",fontFamily:"'Space Mono',monospace",fontSize:13,letterSpacing:1,cursor:"pointer"},
+        btnSm:     {background:"rgba(232,255,107,0.12)",color:"#e8ff6b",border:"1px solid rgba(232,255,107,0.3)",borderRadius:8,padding:"8px 14px",fontFamily:"'Space Mono',monospace",fontSize:11,letterSpacing:1,cursor:"pointer"},
+        btnDanger: {background:"rgba(255,80,80,0.1)",color:"#ff6b6b",border:"1px solid rgba(255,80,80,0.3)",borderRadius:12,padding:"10px 20px",fontFamily:"'Space Mono',monospace",fontSize:12,cursor:"pointer"},
+        label:     {fontSize:11,letterSpacing:3,color:"#888",fontFamily:"'Space Mono',monospace",marginBottom:8,textTransform:"uppercase",display:"block"},
+        input:     {background:"rgba(255,255,255,0.06)",border:"1px solid rgba(232,255,107,0.2)",borderRadius:10,padding:"12px 16px",color:"#f0f0e8",fontFamily:"'DM Sans',sans-serif",fontSize:16,width:"100%",outline:"none",boxSizing:"border-box"},
+        select:    {background:"rgba(30,30,48,1)",border:"1px solid rgba(232,255,107,0.2)",borderRadius:10,padding:"12px 16px",color:"#f0f0e8",fontFamily:"'DM Sans',sans-serif",fontSize:15,width:"100%",outline:"none",boxSizing:"border-box"},
+        tag:       {display:"inline-block",background:"rgba(232,255,107,0.1)",border:"1px solid rgba(232,255,107,0.25)",borderRadius:6,padding:"4px 10px",fontSize:11,letterSpacing:1,color:"#e8ff6b",fontFamily:"'Space Mono',monospace"},
+        navBar:    {position:"fixed",bottom:0,left:0,right:0,background:"rgba(10,10,15,0.97)",borderTop:"1px solid rgba(232,255,107,0.1)",display:"flex",justifyContent:"space-around",padding:"12px 0 20px",zIndex:100},
+        navBtn:    {background:"none",border:"none",cursor:"pointer",display:"flex",flexDirection:"column",alignItems:"center",gap:4,fontFamily:"'Space Mono',monospace",fontSize:9,letterSpacing:1,padding:"4px 20px"},
+        setBtn:    {width:44,height:44,borderRadius:10,border:"1px solid rgba(232,255,107,0.25)",background:"transparent",color:"#e8ff6b",fontSize:22,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center"},
+        setDot:    (done)=>({width:40,height:40,borderRadius:8,border:done?"none":"1px solid rgba(255,255,255,0.15)",background:done?"#e8ff6b":"rgba(255,255,255,0.04)",color:done?"#0a0a0f":"#555",fontFamily:"'Space Mono',monospace",fontSize:12,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",transition:"all 0.15s"}),
+      };
+
+      // ── MODALS ────────────────────────────────────────────────────
+      const renderModal = () => {
+        if (modal==="addExercise") return (
+          <Modal onClose={()=>setModal(null)}>
+            <span style={{...s.label,fontSize:13,marginBottom:16}}>ADD CUSTOM EXERCISE</span>
+            <div style={{display:"flex",flexDirection:"column",gap:12}}>
+              <div><span style={s.label}>Exercise Name</span><input style={s.input} placeholder="e.g. Cable Fly" value={newEx.name} onChange={e=>setNewEx(p=>({...p,name:e.target.value}))} /></div>
+              <div><span style={s.label}>Category</span><select style={s.select} value={newEx.category} onChange={e=>setNewEx(p=>({...p,category:e.target.value}))}>{CATEGORIES.map(c=><option key={c}>{c}</option>)}</select></div>
+              <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}>
+                <div><span style={s.label}>Unit</span><select style={s.select} value={newEx.unit} onChange={e=>setNewEx(p=>({...p,unit:e.target.value}))}><option value="lbs">lbs</option><option value="kg">kg</option><option value="reps">Bodyweight</option></select></div>
+                <div><span style={s.label}>Starting Weight</span><input style={s.input} type="number" value={newEx.defaultWeight} onChange={e=>setNewEx(p=>({...p,defaultWeight:e.target.value}))} disabled={newEx.unit==="reps"} /></div>
+              </div>
+              <div><span style={s.label}>Increment Per Session</span><input style={s.input} type="number" value={newEx.increment} onChange={e=>setNewEx(p=>({...p,increment:e.target.value}))} /></div>
+              <button style={{...s.btn,marginTop:4}} onClick={saveNewExercise}>ADD EXERCISE</button>
+            </div>
+          </Modal>
+        );
+        if (modal==="logPastWorkout") return (
+          <Modal onClose={()=>setModal(null)}>
+            <span style={{...s.label,fontSize:13,marginBottom:4}}>LOG PAST WORKOUT</span>
+            <p style={{color:"#888",fontSize:13,marginBottom:16,lineHeight:1.5}}>Enter a previous session so the app can accurately project your next weights.</p>
+            <div style={{marginBottom:16}}><span style={s.label}>Date</span><input style={s.input} type="date" value={pastDate} onChange={e=>setPastDate(e.target.value)} /></div>
+            {pastRows.map((row,i)=>(
+              <div key={i} style={{...s.card,padding:16,marginBottom:10}}>
+                <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:10}}>
+                  <span style={{...s.label,marginBottom:0}}>EXERCISE {i+1}</span>
+                  {pastRows.length>1&&<button style={{background:"none",border:"none",color:"#ff6b6b",cursor:"pointer",fontSize:20}} onClick={()=>setPastRows(p=>p.filter((_,idx)=>idx!==i))}>×</button>}
+                </div>
+                <div style={{display:"flex",flexDirection:"column",gap:8}}>
+                  <select style={s.select} value={row.exId} onChange={e=>setPastRows(p=>p.map((r,idx)=>idx===i?{...r,exId:e.target.value}:r))}>
+                    <option value="">Select exercise...</option>
+                    {CATEGORIES.map(cat=>{const ces=allExercises.filter(e=>e.category===cat);if(!ces.length)return null;return(<optgroup key={cat} label={cat}>{ces.map(ex=><option key={ex.id} value={ex.id}>{ex.name}{ex.custom?" ★":""}</option>)}</optgroup>);})}
+                  </select>
+                  <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:8}}>
+                    {[["WEIGHT","weight","135"],["REPS","reps","5"],["SETS","sets","3"]].map(([lbl,key,ph])=>(
+                      <div key={key}><span style={{...s.label,fontSize:9}}>{lbl}</span><input style={{...s.input,padding:"10px 12px",fontSize:14}} type="number" placeholder={ph} value={row[key]} onChange={e=>setPastRows(p=>p.map((r,idx)=>idx===i?{...r,[key]:e.target.value}:r))} /></div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            ))}
+            <button style={{...s.btnOutline,width:"100%",marginBottom:10,fontSize:12}} onClick={()=>setPastRows(p=>[...p,{exId:"",weight:"",reps:"",sets:""}])}>+ ADD ANOTHER EXERCISE</button>
+            <button style={s.btn} onClick={savePastWorkout}>SAVE PAST WORKOUT</button>
+          </Modal>
+        );
+        return null;
+      };
+
+      // ── TOAST ─────────────────────────────────────────────────────
+      const ToastEl = toast ? (
+        <div style={{position:"fixed",top:24,left:"50%",transform:"translateX(-50%)",background:"#e8ff6b",color:"#0a0a0f",padding:"12px 24px",borderRadius:10,fontFamily:"'Space Mono',monospace",fontSize:13,fontWeight:700,zIndex:400,boxShadow:"0 8px 32px rgba(232,255,107,0.3)",whiteSpace:"nowrap"}}>
+          {toast}
+        </div>
+      ) : null;
+
+      // ── NAV ───────────────────────────────────────────────────────
+      const NavBar = ({active}) => (
+        <nav style={s.navBar}>
+          {[["🏠","HOME","home"],["📋","HISTORY","history"],["⚙️","PROFILE","profile"]].map(([icon,lbl,scr])=>(
+            <button key={scr} style={{...s.navBtn,color:active===scr?"#e8ff6b":"#555"}} onClick={()=>setScreen(scr)}>
+              <span style={{fontSize:22}}>{icon}</span>{lbl}
+            </button>
+          ))}
+        </nav>
+      );
+
+      // ── LOADING ───────────────────────────────────────────────────
+      if (authUser===undefined || dataLoading) return (
+        <div style={{...s.app,display:"flex",alignItems:"center",justifyContent:"center"}}>
+          <div style={s.bg}/><div style={s.grid}/>
+          <div style={{position:"relative",zIndex:1,textAlign:"center"}}>
+            <div style={{color:"#e8ff6b",fontFamily:"'Space Mono',monospace",fontSize:22,letterSpacing:4,marginBottom:12}}>IRONFORM</div>
+            <div style={{color:"#555",fontSize:12,letterSpacing:3}}>LOADING...</div>
+          </div>
+        </div>
+      );
+
+      // ── SIGN IN ───────────────────────────────────────────────────
+      if (!authUser) return (
+        <div style={{...s.app,display:"flex",alignItems:"center",justifyContent:"center"}}>
+          <div style={s.bg}/><div style={s.grid}/>
+          <div style={{position:"relative",zIndex:1,width:"100%",maxWidth:400,padding:"0 24px",textAlign:"center"}}>
+            <div style={{fontFamily:"'Space Mono',monospace",fontSize:36,fontWeight:700,color:"#e8ff6b",letterSpacing:3,marginBottom:8}}>IRONFORM</div>
+            <div style={{color:"#888",marginBottom:48,fontSize:15,lineHeight:1.6}}>Your personal trainer.<br/>Every device. Every gym.</div>
+            <button onClick={handleSignIn} disabled={signingIn} style={{background:"#fff",color:"#0a0a0f",border:"none",borderRadius:14,padding:"16px 24px",fontFamily:"'Space Mono',monospace",fontWeight:700,fontSize:14,letterSpacing:1,cursor:"pointer",width:"100%",display:"flex",alignItems:"center",justifyContent:"center",gap:12,opacity:signingIn?0.7:1}}>
+              <svg width="20" height="20" viewBox="0 0 24 24"><path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/><path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/><path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l3.66-2.84z"/><path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/></svg>
+              {signingIn ? "Redirecting..." : "Continue with Google"}
+            </button>
+            {signInErr && <div style={{marginTop:16,color:"#ff6b6b",fontSize:13}}>{signInErr}</div>}
+            <p style={{marginTop:32,color:"#444",fontSize:12,lineHeight:1.7}}>Your data is stored securely in Firebase under your own Google account and syncs across all your devices.</p>
+          </div>
+        </div>
+      );
+
+      // ── SETUP ─────────────────────────────────────────────────────
+      if (screen==="setup" || !profile) return (
+        <div style={s.app}>
+          <div style={s.bg}/><div style={s.grid}/>
+          {renderModal()}
+          <div style={s.content}>
+            <div style={s.header}>
+              <div style={s.logo}>IRONFORM</div>
+              <div style={{display:"flex",alignItems:"center",gap:10}}>
+                {authUser.photoURL && <img src={authUser.photoURL} alt="" style={{width:28,height:28,borderRadius:"50%",border:"1px solid rgba(232,255,107,0.3)"}} />}
+                <span style={s.tag}>SETUP</span>
+              </div>
+            </div>
+
+            {setupStep===0 && (
+              <div>
+                <h1 style={{fontSize:32,fontWeight:800,lineHeight:1.2,marginBottom:8}}>Let's build your program.</h1>
+                <p style={{color:"#888",marginBottom:32,lineHeight:1.6}}>Your trainer tracks history, adjusts weights, and syncs across every device.</p>
+                <div style={s.card}>
+                  <span style={s.label}>Your Name</span>
+                  <input style={s.input} placeholder="Enter your name" value={setupData.name} onChange={e=>setSetupData(p=>({...p,name:e.target.value}))} />
+                </div>
+                <button style={s.btn} onClick={()=>setupData.name&&setSetupStep(1)}>CONTINUE →</button>
+              </div>
+            )}
+
+            {setupStep===1 && (
+              <div>
+                <h2 style={{fontSize:26,fontWeight:800,marginBottom:8}}>What's your goal?</h2>
+                <p style={{color:"#888",marginBottom:24}}>Sets how aggressively weights increase each week.</p>
+                {Object.entries(GOALS).map(([key,g])=>(
+                  <div key={key} onClick={()=>setSetupData(p=>({...p,goal:key}))} style={{...s.card,cursor:"pointer",border:setupData.goal===key?"1px solid rgba(232,255,107,0.6)":s.card.border,background:setupData.goal===key?"rgba(232,255,107,0.08)":s.card.background}}>
+                    <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+                      <div><div style={{fontWeight:700,marginBottom:4}}>{g.label}</div><div style={{fontSize:13,color:"#888"}}>{g.description}</div></div>
+                      {setupData.goal===key&&<div style={{color:"#e8ff6b",fontSize:20}}>✓</div>}
+                    </div>
+                  </div>
+                ))}
+                <button style={s.btn} onClick={()=>setSetupStep(2)}>CONTINUE →</button>
+              </div>
+            )}
+
+            {setupStep===2 && (
+              <div>
+                <h2 style={{fontSize:26,fontWeight:800,marginBottom:8}}>Pick your lifts</h2>
+                <p style={{color:"#888",marginBottom:16}}>Select exercises for your workouts.</p>
+                {CATEGORIES.map(cat=>{
+                  const ces=allExercises.filter(e=>e.category===cat);
+                  if(!ces.length) return null;
+                  return (
+                    <div key={cat} style={{marginBottom:20}}>
+                      <span style={s.label}>{cat}</span>
+                      <div style={{display:"flex",flexWrap:"wrap",gap:8}}>
+                        {ces.map(ex=>{
+                          const sel=setupData.exercises.includes(ex.id);
+                          return <button key={ex.id} onClick={()=>setSetupData(p=>({...p,exercises:sel?p.exercises.filter(id=>id!==ex.id):[...p.exercises,ex.id]}))} style={{background:sel?"rgba(232,255,107,0.15)":"rgba(255,255,255,0.04)",border:sel?"1px solid rgba(232,255,107,0.5)":"1px solid rgba(255,255,255,0.1)",borderRadius:8,padding:"8px 14px",color:sel?"#e8ff6b":"#888",fontSize:13,cursor:"pointer"}}>{ex.name}{ex.custom?" ★":""}</button>;
+                        })}
+                      </div>
+                    </div>
+                  );
+                })}
+                <button style={{...s.btnOutline,width:"100%",marginBottom:10}} onClick={()=>{setNewEx({name:"",category:"Chest",unit:"lbs",defaultWeight:45,increment:5});setModal("addExercise");}}>+ CREATE CUSTOM EXERCISE</button>
+                <button style={{...s.btn,opacity:setupData.exercises.length<1?0.4:1}} onClick={()=>{if(setupData.exercises.length>=1){const p={name:setupData.name,goal:setupData.goal,exercises:setupData.exercises,created:new Date().toISOString(),uid:authUser?.uid};saveProfile(p).then(()=>setScreen("home"));}}}>START TRAINING →</button>
+              </div>
+            )}
+          </div>
+        </div>
+      );
+
+      // ── ACTIVE WORKOUT ────────────────────────────────────────────
+      if (screen==="workout" && activeWorkout) {
+        const progress = totalSets>0 ? totalDone/totalSets : 0;
+        return (
+          <div style={s.app}>
+            <div style={s.bg}/><div style={s.grid}/>
+            {ToastEl}
+            <div style={s.content}>
+              <div style={s.header}>
+                <div style={s.logo}>IRONFORM</div>
+                <button style={s.btnDanger} onClick={()=>setScreen("home")}>CANCEL</button>
+              </div>
+              <div style={{...s.card,padding:20,marginBottom:20}}>
+                <div style={{display:"flex",justifyContent:"space-between",marginBottom:12}}>
+                  <div>
+                    <span style={s.label}>{activeWorkout.templateLabel||"Custom Workout"}</span>
+                    <div style={{fontSize:20,fontWeight:800}}>{new Date().toLocaleDateString("en-US",{weekday:"long",month:"short",day:"numeric"})}</div>
+                  </div>
+                  <div style={{textAlign:"right"}}>
+                    <span style={s.label}>Progress</span>
+                    <div style={{fontSize:20,fontWeight:800,color:"#e8ff6b"}}>{totalDone}<span style={{color:"#555",fontSize:14}}>/{totalSets}</span></div>
+                  </div>
+                </div>
+                <div style={{height:6,background:"rgba(255,255,255,0.06)",borderRadius:3,overflow:"hidden"}}>
+                  <div style={{height:"100%",width:`${progress*100}%`,background:"#e8ff6b",borderRadius:3,transition:"width 0.4s ease"}}/>
+                </div>
+              </div>
+
+              {activeWorkout.exercises.map(ex=>{
+                const done=Array.from({length:ex.sets},(_,i)=>!!completedSets[`${ex.id}_${i}`]);
+                const allDone=done.every(Boolean);
+                const lastRec=getLastForExercise(ex.id);
+                return (
+                  <div key={ex.id} style={{...s.card,opacity:allDone?0.7:1,border:allDone?"1px solid rgba(232,255,107,0.4)":s.card.border}}>
+                    <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:4}}>
+                      <div>
+                        <div style={{fontWeight:800,fontSize:18}}>{ex.name}</div>
+                        <div style={{color:"#888",fontSize:13,marginTop:2}}>{ex.sets} sets × {ex.reps} reps</div>
+                      </div>
+                      {allDone&&<div style={{color:"#e8ff6b",fontSize:22}}>✓</div>}
+                    </div>
+                    {lastRec&&<div style={{fontSize:12,color:"#556",marginBottom:12,fontFamily:"'Space Mono',monospace"}}>Last: {lastRec.exercise.weight}{lastRec.exercise.unit!=="reps"?lastRec.exercise.unit:""} · {new Date(lastRec.workout.date).toLocaleDateString("en-US",{month:"short",day:"numeric"})}</div>}
+                    <div style={{display:"flex",alignItems:"center",gap:12,marginBottom:16}}>
+                      <button style={s.setBtn} onClick={()=>adjustWeight(ex.id,-ex.increment)}>−</button>
+                      <div style={{flex:1,textAlign:"center"}}>
+                        <div style={{fontSize:30,fontWeight:900,color:"#e8ff6b",lineHeight:1}}>{ex.weight}</div>
+                        <div style={{fontSize:11,color:"#555",letterSpacing:2,fontFamily:"'Space Mono',monospace"}}>{ex.unit==="reps"?"BODYWEIGHT":ex.unit.toUpperCase()}</div>
+                      </div>
+                      <button style={s.setBtn} onClick={()=>adjustWeight(ex.id,ex.increment)}>+</button>
+                    </div>
+                    <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
+                      {Array.from({length:ex.sets},(_,i)=>(
+                        <button key={i} style={s.setDot(done[i])} onClick={()=>toggleSet(ex.id,i)}>{done[i]?"✓":i+1}</button>
+                      ))}
+                    </div>
+                    <input style={{...s.input,marginTop:12,fontSize:13,padding:"8px 12px"}} placeholder="Notes (optional)..." value={notesMap[ex.id]||""} onChange={e=>setNotesMap(p=>({...p,[ex.id]:e.target.value}))} />
+                  </div>
+                );
+              })}
+              <button style={{...s.btn,background:progress>=0.3?"#e8ff6b":"rgba(232,255,107,0.35)",color:progress>=0.3?"#0a0a0f":"#666"}} onClick={progress>=0.3?finishWorkout:undefined}>
+                {progress>=1?"FINISH WORKOUT ✓":`FINISH EARLY (${totalDone}/${totalSets} sets)`}
+              </button>
+            </div>
+          </div>
+        );
+      }
+
+      // ── HISTORY ───────────────────────────────────────────────────
+      if (screen==="history") return (
+        <div style={s.app}>
+          <div style={s.bg}/><div style={s.grid}/>
+          {renderModal()}{ToastEl}
+          <div style={s.content}>
+            <div style={s.header}>
+              <div style={s.logo}>IRONFORM</div>
+              <button style={s.btnSm} onClick={()=>{setPastDate("");setPastRows([{exId:"",weight:"",reps:"",sets:""}]);setModal("logPastWorkout");}}>+ LOG PAST</button>
+            </div>
+            {workouts.length===0 ? (
+              <div style={{...s.card,textAlign:"center",padding:48}}>
+                <div style={{fontSize:40,marginBottom:12}}>📋</div>
+                <div style={{color:"#888",marginBottom:20}}>No workouts yet.</div>
+                <button style={s.btnOutline} onClick={()=>{setPastDate("");setPastRows([{exId:"",weight:"",reps:"",sets:""}]);setModal("logPastWorkout");}}>Import Past Workouts</button>
+              </div>
+            ) : [...workouts].reverse().map(w=>(
+              <div key={w._id||w.date} style={s.card}>
+                <div style={{display:"flex",justifyContent:"space-between",marginBottom:12}}>
+                  <div>
+                    <div style={{fontWeight:800,fontSize:16}}>{new Date(w.date).toLocaleDateString("en-US",{weekday:"short",month:"short",day:"numeric",year:"numeric"})}</div>
+                    <div style={{color:"#888",fontSize:13}}>{w.exercises?.length} exercises</div>
+                  </div>
+                  <div style={{display:"flex",gap:6,alignItems:"center",flexWrap:"wrap",justifyContent:"flex-end"}}>
+                    {w.templateLabel&&(()=>{const t=WORKOUT_TEMPLATES.find(x=>x.label===w.templateLabel);return <span style={{...s.tag,background:t?t.colorBg:"rgba(255,255,255,0.05)",border:`1px solid ${t?t.colorBorder:"rgba(255,255,255,0.1)"}`,color:t?t.color:"#aaa"}}>{w.templateLabel.toUpperCase()}</span>;})()}
+                    {w.imported&&<span style={{...s.tag,background:"rgba(100,180,255,0.1)",border:"1px solid rgba(100,180,255,0.3)",color:"#7ec8ff"}}>IMPORTED</span>}
+                    <span style={s.tag}>{w.completed?"DONE":"PARTIAL"}</span>
+                  </div>
+                </div>
+                {w.exercises?.map(ex=>(
+                  <div key={ex.id} style={{display:"flex",justifyContent:"space-between",padding:"6px 0",borderBottom:"1px solid rgba(255,255,255,0.04)",fontSize:14}}>
+                    <span style={{color:"#ccc"}}>{ex.name}</span>
+                    <span style={{color:"#e8ff6b",fontFamily:"'Space Mono',monospace",fontSize:13}}>{ex.unit==="reps"?`BW × ${ex.reps}`:`${ex.weight}${ex.unit} × ${ex.reps}`}{ex.sets>1?` × ${ex.sets}s`:""}</span>
+                  </div>
+                ))}
+              </div>
+            ))}
+          </div>
+          <NavBar active="history" />
+        </div>
+      );
+
+      // ── PROFILE ───────────────────────────────────────────────────
+      if (screen==="profile") return (
+        <div style={s.app}>
+          <div style={s.bg}/><div style={s.grid}/>
+          {renderModal()}{ToastEl}
+          <div style={s.content}>
+            <div style={s.header}><div style={s.logo}>IRONFORM</div><span style={s.tag}>PROFILE</span></div>
+            <div style={s.accentCard}>
+              <div style={{display:"flex",alignItems:"center",gap:14,marginBottom:8}}>
+                {authUser.photoURL&&<img src={authUser.photoURL} alt="" style={{width:52,height:52,borderRadius:"50%",border:"2px solid rgba(232,255,107,0.4)"}}/>}
+                <div>
+                  <div style={{fontSize:24,fontWeight:900}}>{profile.name}</div>
+                  <div style={{color:"#888",fontSize:13}}>{authUser.email}</div>
+                </div>
+              </div>
+              <div style={{color:"#888",marginTop:4}}>Goal: <span style={{color:"#e8ff6b"}}>{GOALS[profile.goal]?.label}</span> · {workouts.length} workouts logged</div>
+            </div>
+
+            <div style={s.card}>
+              <span style={s.label}>Change Goal</span>
+              <div style={{display:"flex",flexDirection:"column",gap:8,marginTop:8}}>
+                {Object.entries(GOALS).map(([key,g])=>(
+                  <button key={key} onClick={async()=>{await saveProfile({...profile,goal:key});showToast("Goal updated!");}}
+                    style={{background:profile.goal===key?"rgba(232,255,107,0.12)":"rgba(255,255,255,0.03)",border:profile.goal===key?"1px solid rgba(232,255,107,0.4)":"1px solid rgba(255,255,255,0.08)",borderRadius:10,padding:"12px 16px",cursor:"pointer",color:profile.goal===key?"#e8ff6b":"#888",textAlign:"left",fontFamily:"'DM Sans',sans-serif",fontSize:14,display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+                    <div><div style={{fontWeight:600}}>{g.label}</div><div style={{fontSize:12,opacity:0.7}}>{g.description}</div></div>
+                    {profile.goal===key&&<span>✓</span>}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div style={s.card}>
+              <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:12}}>
+                <span style={s.label}>Exercises ({profile.exercises?.length})</span>
+                <button style={s.btnSm} onClick={()=>{setNewEx({name:"",category:"Chest",unit:"lbs",defaultWeight:45,increment:5});setModal("addExercise");}}>+ NEW</button>
+              </div>
+              <div style={{display:"flex",flexDirection:"column",gap:8}}>
+                {allExercises.map(ex=>{
+                  const active=profile.exercises?.includes(ex.id);
+                  return (
+                    <div key={ex.id} style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"8px 12px",background:active?"rgba(232,255,107,0.06)":"rgba(255,255,255,0.02)",borderRadius:8,border:active?"1px solid rgba(232,255,107,0.2)":"1px solid transparent"}}>
+                      <div>
+                        <span style={{fontSize:14,color:active?"#f0f0e8":"#555"}}>{ex.name}</span>
+                        {ex.custom&&<span style={{fontSize:10,color:"#e8ff6b",marginLeft:6,fontFamily:"'Space Mono',monospace"}}>CUSTOM</span>}
+                        <div style={{fontSize:11,color:"#555"}}>{ex.category} · {ex.unit==="reps"?"bodyweight":`${ex.defaultWeight}${ex.unit} start`}</div>
+                      </div>
+                      <button onClick={async()=>{const upd=active?profile.exercises.filter(id=>id!==ex.id):[...(profile.exercises||[]),ex.id];await saveProfile({...profile,exercises:upd});}} style={{background:active?"rgba(255,80,80,0.1)":"rgba(232,255,107,0.1)",border:active?"1px solid rgba(255,80,80,0.3)":"1px solid rgba(232,255,107,0.3)",borderRadius:6,padding:"4px 10px",cursor:"pointer",color:active?"#ff6b6b":"#e8ff6b",fontSize:11,fontFamily:"'Space Mono',monospace"}}>
+                        {active?"REMOVE":"ADD"}
+                      </button>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+            <button style={{...s.btnDanger,width:"100%",marginTop:8}} onClick={handleSignOut}>Sign Out</button>
+          </div>
+          <NavBar active="profile" />
+        </div>
+      );
+
+      // ── HOME ──────────────────────────────────────────────────────
+      const lastWorkout = workouts[workouts.length-1];
+      const daysSinceLast = lastWorkout ? Math.floor((Date.now()-new Date(lastWorkout.date))/86400000) : null;
+
+      return (
+        <div style={s.app}>
+          <div style={s.bg}/><div style={s.grid}/>
+          {renderModal()}{ToastEl}
+          <div style={s.content}>
+            <div style={s.header}>
+              <div style={s.logo}>IRONFORM</div>
+              <div style={{display:"flex",alignItems:"center",gap:10}}>
+                <span style={{color:"#555",fontSize:14}}>Hey, {profile.name}</span>
+                {authUser.photoURL&&<img src={authUser.photoURL} alt="" style={{width:28,height:28,borderRadius:"50%",border:"1px solid rgba(232,255,107,0.3)"}}/>}
+              </div>
+            </div>
+
+            <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:10,marginBottom:20}}>
+              {[{label:"WORKOUTS",value:workouts.length},{label:"DAYS REST",value:daysSinceLast===null?"—":daysSinceLast},{label:"EXERCISES",value:profile.exercises?.length||0}].map(stat=>(
+                <div key={stat.label} style={{...s.card,padding:16,textAlign:"center",marginBottom:0}}>
+                  <div style={{fontSize:26,fontWeight:900,color:"#e8ff6b",lineHeight:1}}>{stat.value}</div>
+                  <span style={{...s.label,marginBottom:0,marginTop:4}}>{stat.label}</span>
+                </div>
+              ))}
+            </div>
+
+            <div style={{marginBottom:16}}>
+              <span style={s.label}>START A WORKOUT</span>
+              <div style={{display:"flex",flexDirection:"column",gap:10}}>
+                {WORKOUT_TEMPLATES.map(tmpl=>{
+                  const last=[...workouts].reverse().find(w=>w.templateLabel===tmpl.label);
+                  const days=last?Math.floor((Date.now()-new Date(last.date))/86400000):null;
+                  return (
+                    <button key={tmpl.id} onClick={()=>startWorkout(tmpl)} style={{background:tmpl.colorBg,border:`1px solid ${tmpl.colorBorder}`,borderRadius:16,padding:"18px 20px",cursor:"pointer",textAlign:"left",display:"flex",justifyContent:"space-between",alignItems:"center",width:"100%"}}>
+                      <div>
+                        <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:6}}>
+                          <span style={{fontSize:20}}>{tmpl.emoji}</span>
+                          <span style={{fontFamily:"'Space Mono',monospace",fontWeight:700,fontSize:15,color:tmpl.color,letterSpacing:1}}>{tmpl.label.toUpperCase()}</span>
+                        </div>
+                        <div style={{display:"flex",flexWrap:"wrap",gap:4}}>
+                          {tmpl.exercises.map(id=>{const ex=allExercises.find(e=>e.id===id);return ex?<span key={id} style={{fontSize:11,color:"#666",background:"rgba(0,0,0,0.3)",borderRadius:4,padding:"2px 6px"}}>{ex.name}</span>:null;})}
+                        </div>
+                      </div>
+                      <div style={{textAlign:"right",marginLeft:12,flexShrink:0}}>
+                        {days!==null?(<><div style={{fontSize:20,fontWeight:900,color:tmpl.color,lineHeight:1}}>{days}</div><div style={{fontSize:9,color:"#555",fontFamily:"'Space Mono',monospace",letterSpacing:1}}>DAYS AGO</div></>):(<div style={{fontSize:11,color:"#444",fontFamily:"'Space Mono',monospace"}}>NEW</div>)}
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginBottom:16}}>
+              <button style={{...s.card,marginBottom:0,cursor:"pointer",textAlign:"center",padding:16,border:"1px solid rgba(100,180,255,0.2)",background:"rgba(100,180,255,0.05)"}} onClick={()=>{setPastDate("");setPastRows([{exId:"",weight:"",reps:"",sets:""}]);setModal("logPastWorkout");}}>
+                <div style={{fontSize:22,marginBottom:4}}>📥</div>
+                <div style={{fontSize:12,fontFamily:"'Space Mono',monospace",color:"#7ec8ff",letterSpacing:1}}>LOG PAST</div>
+                <div style={{fontSize:11,color:"#555",marginTop:2}}>Import history</div>
+              </button>
+              <button style={{...s.card,marginBottom:0,cursor:"pointer",textAlign:"center",padding:16,border:"1px solid rgba(232,255,107,0.15)",background:"rgba(232,255,107,0.04)"}} onClick={()=>{setNewEx({name:"",category:"Chest",unit:"lbs",defaultWeight:45,increment:5});setModal("addExercise");}}>
+                <div style={{fontSize:22,marginBottom:4}}>➕</div>
+                <div style={{fontSize:12,fontFamily:"'Space Mono',monospace",color:"#e8ff6b",letterSpacing:1}}>NEW LIFT</div>
+                <div style={{fontSize:11,color:"#555",marginTop:2}}>Custom exercise</div>
+              </button>
+            </div>
+
+            {lastWorkout&&(
+              <div style={s.card}>
+                <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:12}}>
+                  <span style={s.label}>LAST SESSION</span>
+                  <div style={{display:"flex",gap:6,alignItems:"center"}}>
+                    {lastWorkout.imported&&<span style={{...s.tag,background:"rgba(100,180,255,0.1)",border:"1px solid rgba(100,180,255,0.3)",color:"#7ec8ff",fontSize:9}}>IMPORTED</span>}
+                    <span style={{fontSize:12,color:"#555"}}>{new Date(lastWorkout.date).toLocaleDateString("en-US",{month:"short",day:"numeric"})}</span>
+                  </div>
+                </div>
+                {lastWorkout.exercises?.slice(0,4).map(ex=>(
+                  <div key={ex.id} style={{display:"flex",justifyContent:"space-between",padding:"6px 0",borderBottom:"1px solid rgba(255,255,255,0.04)",fontSize:14}}>
+                    <span style={{color:"#aaa"}}>{ex.name}</span>
+                    <span style={{color:"#e8ff6b",fontFamily:"'Space Mono',monospace",fontSize:13}}>{ex.unit==="reps"?`BW × ${ex.reps}`:`${ex.weight}${ex.unit} × ${ex.reps}`}</span>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+          <NavBar active="home" />
+        </div>
+      );
+    }
+
+    ReactDOM.createRoot(document.getElementById("root")).render(<App />);
+  </script>
+</body>
+</html>
