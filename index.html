@@ -29,7 +29,7 @@
   <script type="text/babel">
     const { useState, useEffect, useRef } = React;
 
-    // ── FIREBASE CONFIG — PASTE YOUR VALUES HERE ──────────────────
+    // ── FIREBASE CONFIG ───────────────────────────────────────────
     const FIREBASE_CONFIG = {
       apiKey:            "AIzaSyCQDJhJFUCuTQrymlmOx3Sgv54UUrMPekY",
       authDomain:        "trainerdata-c5e64.firebaseapp.com",
@@ -37,8 +37,8 @@
       storageBucket:     "trainerdata-c5e64.firebasestorage.app",
       messagingSenderId: "71847069277",
       appId:             "1:71847069277:web:2dde9bfd125c5d6c466fb4",
+
     };
-    // ─────────────────────────────────────────────────────────────
 
     if (!firebase.apps.length) firebase.initializeApp(FIREBASE_CONFIG);
     const auth = firebase.auth();
@@ -53,7 +53,7 @@
     const fbGetCustomExs = async (uid) => { const s = await db.collection("users").doc(uid).collection("customExercises").get(); return s.docs.map(d=>({...d.data(),_fid:d.id})); };
     const fbAddCustomEx  = async (uid, ex) => { const r = await db.collection("users").doc(uid).collection("customExercises").add(ex); return r.id; };
 
-    // ── EXERCISE DATABASE ─────────────────────────────────────────
+    // ── EXERCISES ─────────────────────────────────────────────────
     const BUILTIN_EXERCISES = [
       {id:"bench",            name:"Bench Press",                      category:"Chest",     unit:"lbs", defaultWeight:115,    increment:5},
       {id:"decline_press",    name:"Decline Press",                    category:"Chest",     unit:"lbs", defaultWeight:65,     increment:5},
@@ -106,23 +106,13 @@
       maintain:    {sets:3, reps:8},
     };
 
-    // ── WORKOUT PRESETS ───────────────────────────────────────────
     const WORKOUT_TEMPLATES = [
-      {
-        id:"push", label:"Push Day", emoji:"💪",
-        color:"#e8ff6b", colorBg:"rgba(232,255,107,0.08)", colorBorder:"rgba(232,255,107,0.35)",
-        exercises:["bench","incline_db_press","cable_fly","lateral_raise","oh_db_press","tricep_rope","assisted_dip"],
-      },
-      {
-        id:"pull", label:"Pull Day", emoji:"🏋️",
-        color:"#7ec8ff", colorBg:"rgba(126,200,255,0.08)", colorBorder:"rgba(126,200,255,0.35)",
-        exercises:["lat_pulldown","seated_cable_row","single_arm_row","preacher_curl","rope_hammer_curl"],
-      },
-      {
-        id:"legs", label:"Leg Day", emoji:"🦵",
-        color:"#ff9f6b", colorBg:"rgba(255,159,107,0.08)", colorBorder:"rgba(255,159,107,0.35)",
-        exercises:["squat","rdl","leg_press","calf_raise","glute_drive","hip_adduction","leg_curl"],
-      },
+      {id:"push", label:"Push Day", emoji:"💪", color:"#e8ff6b", colorBg:"rgba(232,255,107,0.08)", colorBorder:"rgba(232,255,107,0.35)",
+        exercises:["bench","incline_db_press","cable_fly","lateral_raise","oh_db_press","tricep_rope","assisted_dip"]},
+      {id:"pull", label:"Pull Day", emoji:"🏋️", color:"#7ec8ff", colorBg:"rgba(126,200,255,0.08)", colorBorder:"rgba(126,200,255,0.35)",
+        exercises:["lat_pulldown","seated_cable_row","single_arm_row","preacher_curl","rope_hammer_curl"]},
+      {id:"legs", label:"Leg Day",  emoji:"🦵", color:"#ff9f6b", colorBg:"rgba(255,159,107,0.08)", colorBorder:"rgba(255,159,107,0.35)",
+        exercises:["squat","rdl","leg_press","calf_raise","glute_drive","hip_adduction","leg_curl"]},
     ];
 
     function safeProgressWeight(current, goal, weeksSince, unit) {
@@ -133,10 +123,10 @@
       return Math.min(proposed, current+maxInc);
     }
 
-    // ── SHARED COMPONENTS ─────────────────────────────────────────
+    // ── SHARED UI ─────────────────────────────────────────────────
     function Modal({children, onClose}) {
       return (
-        <div onClick={onClose} style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.85)",zIndex:300,display:"flex",alignItems:"flex-end",justifyContent:"center"}}>
+        <div onClick={onClose} style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.85)",zIndex:500,display:"flex",alignItems:"flex-end",justifyContent:"center"}}>
           <div onClick={e=>e.stopPropagation()} style={{background:"#111118",border:"1px solid rgba(232,255,107,0.15)",borderRadius:"20px 20px 0 0",width:"100%",maxWidth:480,maxHeight:"90vh",overflowY:"auto",padding:24,paddingBottom:40}}>
             {children}
           </div>
@@ -152,33 +142,55 @@
       );
     }
 
-    // ── MAIN APP ──────────────────────────────────────────────────
+    function Stepper({value, onChange, min=1, label}) {
+      return (
+        <div style={{display:"flex",flexDirection:"column",alignItems:"center",gap:6}}>
+          <span style={{fontSize:9,letterSpacing:2,color:"#888",fontFamily:"'Space Mono',monospace"}}>{label}</span>
+          <div style={{display:"flex",alignItems:"center",gap:8}}>
+            <button onClick={()=>onChange(Math.max(min, value-1))} style={{width:32,height:32,borderRadius:8,border:"1px solid rgba(232,255,107,0.2)",background:"transparent",color:"#e8ff6b",fontSize:18,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center"}}>−</button>
+            <span style={{fontFamily:"'Space Mono',monospace",fontSize:20,fontWeight:700,color:"#f0f0e8",minWidth:28,textAlign:"center"}}>{value}</span>
+            <button onClick={()=>onChange(value+1)} style={{width:32,height:32,borderRadius:8,border:"1px solid rgba(232,255,107,0.2)",background:"transparent",color:"#e8ff6b",fontSize:18,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center"}}>+</button>
+          </div>
+        </div>
+      );
+    }
+
+    // ── APP ───────────────────────────────────────────────────────
     function App() {
       const [authUser,      setAuthUser]      = useState(undefined);
       const [screen,        setScreen]        = useState("home");
       const [profile,       setProfileS]      = useState(null);
       const [workouts,      setWorkouts]      = useState([]);
       const [customExs,     setCustomExs]     = useState([]);
-      const [activeWorkout, setActiveWorkout] = useState(null);
+      const [dataLoading,   setDataLoading]   = useState(false);
+
+      // Workout state
       const [activeTmpl,    setActiveTmpl]    = useState(null);
       const [extraExIds,    setExtraExIds]    = useState([]);
-      const [dataLoading,   setDataLoading]   = useState(false);
+      const [previewSets,   setPreviewSets]   = useState(4);
+      const [previewReps,   setPreviewReps]   = useState(10);
+      const [activeWorkout, setActiveWorkout] = useState(null);
+      const [currentExIdx,  setCurrentExIdx]  = useState(0);  // one-at-a-time index
       const [completedSets, setCompletedSets] = useState({});
-      const [notesMap,      setNotesMap]      = useState({});
-      const [toast,         setToast]         = useState(null);
-      const [modal,         setModal]         = useState(null);
+      const [noteFor,       setNoteFor]       = useState({});
+
+      // Custom builder
       const [customExIds,   setCustomExIds]   = useState([]);
       const [customGoal,    setCustomGoal]    = useState("hypertrophy");
+
+      // Modals & forms
+      const [modal,         setModal]         = useState(null);
       const [newEx,         setNewEx]         = useState({name:"",category:"Chest",unit:"lbs",defaultWeight:45,increment:5});
       const [pastDate,      setPastDate]      = useState("");
       const [pastRows,      setPastRows]      = useState([{exId:"",weight:"",reps:"",sets:""}]);
       const [signInErr,     setSignInErr]     = useState(null);
       const [signingIn,     setSigningIn]     = useState(false);
+      const [toast,         setToast]         = useState(null);
       const toastTimer = useRef(null);
 
       const allExercises = [...BUILTIN_EXERCISES, ...customExs];
 
-      // ── AUTH ──────────────────────────────────────────────────
+      // ── AUTH ────────────────────────────────────────────────────
       useEffect(() => {
         const unsub = auth.onAuthStateChanged(async user => {
           setAuthUser(user||null);
@@ -190,7 +202,7 @@
       const loadData = async (uid) => {
         setDataLoading(true);
         try {
-          const [prof, wkts, cexs] = await Promise.all([fbGetProfile(uid), fbGetWorkouts(uid), fbGetCustomExs(uid)]);
+          const [prof,wkts,cexs] = await Promise.all([fbGetProfile(uid),fbGetWorkouts(uid),fbGetCustomExs(uid)]);
           if (prof) setProfileS(prof);
           setWorkouts(wkts);
           setCustomExs(cexs);
@@ -198,13 +210,12 @@
         setDataLoading(false);
       };
 
-      // Auto-create profile silently on first sign-in — no setup screen needed
       useEffect(() => {
         if (authUser && !dataLoading && profile===null) {
-          const p = {goal:"hypertrophy", exercises:[], created:new Date().toISOString(), uid:authUser.uid};
+          const p={goal:"hypertrophy",exercises:[],created:new Date().toISOString(),uid:authUser.uid};
           saveProfile(p);
         }
-      }, [authUser, dataLoading, profile]);
+      }, [authUser,dataLoading,profile]);
 
       const handleSignIn = async () => {
         setSignInErr(null); setSigningIn(true);
@@ -216,146 +227,124 @@
         }
       };
 
-      const handleSignOut = async () => {
-        await auth.signOut();
-        setProfileS(null); setWorkouts([]); setCustomExs([]); setScreen("home");
-      };
+      const handleSignOut = async () => { await auth.signOut(); setProfileS(null);setWorkouts([]);setCustomExs([]);setScreen("home"); };
 
-      const showToast = (msg) => {
-        setToast(msg); clearTimeout(toastTimer.current);
-        toastTimer.current = setTimeout(()=>setToast(null), 3000);
-      };
+      const showToast = (msg) => { setToast(msg); clearTimeout(toastTimer.current); toastTimer.current=setTimeout(()=>setToast(null),3000); };
 
-      // ── SAVE HELPERS ──────────────────────────────────────────
-      const saveProfile = async (p) => {
-        setProfileS(p);
-        if (authUser) await fbSetProfile(authUser.uid, p);
-      };
+      const saveProfile  = async (p) => { setProfileS(p); if(authUser) await fbSetProfile(authUser.uid,p); };
+      const addWorkout   = async (w) => { if(authUser){const id=await fbAddWorkout(authUser.uid,w);w={...w,_id:id};} setWorkouts(prev=>[...prev,w].sort((a,b)=>new Date(a.date)-new Date(b.date))); };
+      const doAddCustomEx = async (ex) => { if(authUser){const fid=await fbAddCustomEx(authUser.uid,ex);ex={...ex,_fid:fid};} setCustomExs(prev=>[...prev,ex]); return ex; };
 
-      const addWorkout = async (w) => {
-        if (authUser) { const id=await fbAddWorkout(authUser.uid,w); w={...w,_id:id}; }
-        setWorkouts(prev=>[...prev,w].sort((a,b)=>new Date(a.date)-new Date(b.date)));
-      };
-
-      const addCustomEx = async (ex) => {
-        if (authUser) { const fid=await fbAddCustomEx(authUser.uid,ex); ex={...ex,_fid:fid}; }
-        setCustomExs(prev=>[...prev,ex]);
-        return ex;
-      };
-
-      // ── WORKOUT LOGIC ─────────────────────────────────────────
+      // ── WORKOUT LOGIC ────────────────────────────────────────────
       const getLastForExercise = (exId) => {
-        for (let i=workouts.length-1; i>=0; i--) {
+        for(let i=workouts.length-1;i>=0;i--){
           const ex=workouts[i].exercises?.find(e=>e.id===exId);
-          if (ex) return {workout:workouts[i], exercise:ex};
+          if(ex) return {workout:workouts[i],exercise:ex};
         }
         return null;
       };
 
-      const buildExerciseList = (exIdList, goal) => {
-        const sr = GOAL_SETS[goal||"hypertrophy"];
+      const buildExerciseList = (exIdList, sets, reps) => {
         return exIdList.map(exId=>{
           const def=allExercises.find(e=>e.id===exId);
-          if (!def) return null;
+          if(!def) return null;
           const last=getLastForExercise(exId);
+          const goal=profile?.goal||"hypertrophy";
           let weight=def.defaultWeight;
-          if (last) {
+          if(last){
             const days=(Date.now()-new Date(last.workout.date))/86400000;
             const weeks=Math.max(1,Math.round(days/7));
-            weight=safeProgressWeight(last.exercise.weight, goal||"hypertrophy", weeks, def.unit);
+            weight=safeProgressWeight(last.exercise.weight,goal,weeks,def.unit);
           }
-          return {id:exId, name:def.name, category:def.category, weight, unit:def.unit, sets:sr.sets, reps:sr.reps, increment:def.increment};
+          return {id:exId,name:def.name,category:def.category,weight,unit:def.unit,sets,reps,increment:def.increment};
         }).filter(Boolean);
       };
 
-      const launchWorkout = (tmpl, extras=[]) => {
-        const goal = profile?.goal||"hypertrophy";
-        const exercises = buildExerciseList([...tmpl.exercises,...extras], goal);
-        setActiveWorkout({date:new Date().toISOString(), exercises, completed:false, templateLabel:tmpl.label});
-        setCompletedSets({}); setNotesMap({});
+      const launchWorkout = (tmpl, extras, sets, reps) => {
+        const exercises=buildExerciseList([...tmpl.exercises,...extras],sets,reps);
+        setActiveWorkout({date:new Date().toISOString(),exercises,completed:false,templateLabel:tmpl.label});
+        setCurrentExIdx(0); setCompletedSets({}); setNoteFor({});
         setScreen("workout");
       };
 
       const launchCustomWorkout = () => {
-        const exercises = buildExerciseList(customExIds, customGoal);
-        setActiveWorkout({date:new Date().toISOString(), exercises, completed:false, templateLabel:"Custom"});
-        setCompletedSets({}); setNotesMap({});
+        const sr=GOAL_SETS[customGoal];
+        const exercises=buildExerciseList(customExIds,sr.sets,sr.reps);
+        setActiveWorkout({date:new Date().toISOString(),exercises,completed:false,templateLabel:"Custom"});
+        setCurrentExIdx(0); setCompletedSets({}); setNoteFor({});
         setScreen("workout");
       };
 
       const finishWorkout = async () => {
-        await addWorkout({...activeWorkout, completed:true});
+        await addWorkout({...activeWorkout,completed:true});
         setActiveWorkout(null); setActiveTmpl(null); setExtraExIds([]);
         showToast("Workout saved! Great work 💪");
         setScreen("home");
       };
 
-      const cancelWorkout = () => {
-        setActiveWorkout(null); setActiveTmpl(null); setExtraExIds([]);
-        setScreen("home");
-      };
+      const cancelWorkout = () => { setActiveWorkout(null);setActiveTmpl(null);setExtraExIds([]);setScreen("home"); };
 
+      // Set completion helpers
       const toggleSet = (exId,i) => setCompletedSets(p=>({...p,[`${exId}_${i}`]:!p[`${exId}_${i}`]}));
-      const adjustWeight = (exId,delta) => setActiveWorkout(p=>({...p,exercises:p.exercises.map(e=>e.id===exId?{...e,weight:Math.max(0,e.weight+delta)}:e)}));
+      const adjustWeight = (exId,delta) => setActiveWorkout(p=>({...p,exercises:p.exercises.map(e=>e.id===exId?{...e,weight:Math.max(0,+(e.weight+delta).toFixed(2))}:e)}));
 
-      const totalSets = activeWorkout ? activeWorkout.exercises.reduce((a,e)=>a+e.sets,0) : 0;
-      const totalDone = activeWorkout ? activeWorkout.exercises.reduce((a,ex)=>{
-        for(let i=0;i<ex.sets;i++) if(completedSets[`${ex.id}_${i}`]) a++;
-        return a;
-      },0) : 0;
+      const setsForEx = (ex) => Array.from({length:ex.sets},(_,i)=>!!completedSets[`${ex.id}_${i}`]);
+      const totalSets = activeWorkout?activeWorkout.exercises.reduce((a,e)=>a+e.sets,0):0;
+      const totalDone = activeWorkout?activeWorkout.exercises.reduce((a,ex)=>{
+        setsForEx(ex).forEach(d=>{if(d)a++;});return a;
+      },0):0;
 
-      // ── SAVE CUSTOM EXERCISE ──────────────────────────────────
+      // Save custom exercise
       const saveNewExercise = async (addToWorkout=false) => {
-        if (!newEx.name.trim()) return;
-        const ex={id:"custom_"+Date.now(), name:newEx.name.trim(), category:newEx.category, unit:newEx.unit, defaultWeight:Number(newEx.defaultWeight)||0, increment:Number(newEx.increment)||5, custom:true};
-        const saved=await addCustomEx(ex);
-        if (addToWorkout) {
-          if (activeTmpl) setExtraExIds(p=>[...p,saved.id]);
+        if(!newEx.name.trim()) return;
+        const ex={id:"custom_"+Date.now(),name:newEx.name.trim(),category:newEx.category,unit:newEx.unit,defaultWeight:Number(newEx.defaultWeight)||0,increment:Number(newEx.increment)||5,custom:true};
+        const saved=await doAddCustomEx(ex);
+        if(addToWorkout){
+          if(activeTmpl) setExtraExIds(p=>[...p,saved.id]);
           else setCustomExIds(p=>[...p,saved.id]);
         }
         setNewEx({name:"",category:"Chest",unit:"lbs",defaultWeight:45,increment:5});
-        setModal(null);
-        showToast(ex.name+" added!");
+        setModal(null); showToast(ex.name+" added!");
       };
 
-      // ── LOG PAST WORKOUT ──────────────────────────────────────
+      // Save past workout
       const savePastWorkout = async () => {
-        if (!pastDate) return;
+        if(!pastDate) return;
         const exercises=pastRows.filter(r=>r.exId&&r.weight!==""&&r.reps!=="").map(r=>{
           const def=allExercises.find(e=>e.id===r.exId);
           return {id:r.exId,name:def?.name||r.exId,category:def?.category||"Other",weight:Number(r.weight),unit:def?.unit||"lbs",sets:Number(r.sets)||3,reps:Number(r.reps),increment:def?.increment||5};
         });
-        if (!exercises.length) return;
+        if(!exercises.length) return;
         await addWorkout({date:new Date(pastDate+"T12:00:00").toISOString(),exercises,completed:true,imported:true});
         setPastDate(""); setPastRows([{exId:"",weight:"",reps:"",sets:""}]);
         setModal(null); showToast("Past workout imported!");
       };
 
-      // ── STYLES ────────────────────────────────────────────────
+      // ── STYLES ────────────────────────────────────────────────────
       const s = {
-        app:        {minHeight:"100vh",background:"#0a0a0f",color:"#f0f0e8",fontFamily:"'DM Sans',sans-serif",position:"relative"},
-        bg:         {position:"fixed",inset:0,background:"radial-gradient(ellipse 80% 60% at 50% -20%, #1a1a2e 0%, #0a0a0f 60%)",zIndex:0,pointerEvents:"none"},
-        grid:       {position:"fixed",inset:0,backgroundImage:"linear-gradient(rgba(232,255,107,0.03) 1px,transparent 1px),linear-gradient(90deg,rgba(232,255,107,0.03) 1px,transparent 1px)",backgroundSize:"60px 60px",zIndex:0,pointerEvents:"none"},
-        content:    {position:"relative",zIndex:1,maxWidth:480,margin:"0 auto",padding:"24px 20px 110px"},
-        header:     {display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:24,paddingTop:8},
-        logo:       {fontFamily:"'Space Mono',monospace",fontSize:20,fontWeight:700,color:"#e8ff6b",letterSpacing:2},
-        card:       {background:"rgba(255,255,255,0.04)",border:"1px solid rgba(232,255,107,0.12)",borderRadius:16,padding:20,marginBottom:12},
-        accentCard: {background:"rgba(232,255,107,0.08)",border:"1px solid rgba(232,255,107,0.3)",borderRadius:16,padding:24,marginBottom:16},
-        btn:        {background:"#e8ff6b",color:"#0a0a0f",border:"none",borderRadius:12,padding:"14px 28px",fontFamily:"'Space Mono',monospace",fontWeight:700,fontSize:14,letterSpacing:1,cursor:"pointer",width:"100%",marginTop:8,display:"block"},
-        btnOutline: {background:"transparent",color:"#e8ff6b",border:"1px solid rgba(232,255,107,0.4)",borderRadius:12,padding:"12px 24px",fontFamily:"'Space Mono',monospace",fontSize:13,letterSpacing:1,cursor:"pointer"},
-        btnSm:      {background:"rgba(232,255,107,0.12)",color:"#e8ff6b",border:"1px solid rgba(232,255,107,0.3)",borderRadius:8,padding:"8px 14px",fontFamily:"'Space Mono',monospace",fontSize:11,letterSpacing:1,cursor:"pointer"},
-        btnDanger:  {background:"rgba(255,80,80,0.1)",color:"#ff6b6b",border:"1px solid rgba(255,80,80,0.3)",borderRadius:12,padding:"10px 20px",fontFamily:"'Space Mono',monospace",fontSize:12,cursor:"pointer"},
-        label:      {fontSize:11,letterSpacing:3,color:"#888",fontFamily:"'Space Mono',monospace",marginBottom:8,textTransform:"uppercase",display:"block"},
-        input:      {background:"rgba(255,255,255,0.06)",border:"1px solid rgba(232,255,107,0.2)",borderRadius:10,padding:"12px 16px",color:"#f0f0e8",fontFamily:"'DM Sans',sans-serif",fontSize:16,width:"100%",outline:"none",boxSizing:"border-box"},
-        select:     {background:"rgba(30,30,48,1)",border:"1px solid rgba(232,255,107,0.2)",borderRadius:10,padding:"12px 16px",color:"#f0f0e8",fontFamily:"'DM Sans',sans-serif",fontSize:15,width:"100%",outline:"none",boxSizing:"border-box"},
-        tag:        {display:"inline-block",background:"rgba(232,255,107,0.1)",border:"1px solid rgba(232,255,107,0.25)",borderRadius:6,padding:"4px 10px",fontSize:11,letterSpacing:1,color:"#e8ff6b",fontFamily:"'Space Mono',monospace"},
-        navBar:     {position:"fixed",bottom:0,left:0,right:0,background:"rgba(10,10,15,0.97)",borderTop:"1px solid rgba(232,255,107,0.1)",display:"flex",justifyContent:"space-around",padding:"12px 0 20px",zIndex:100},
-        navBtn:     {background:"none",border:"none",cursor:"pointer",display:"flex",flexDirection:"column",alignItems:"center",gap:4,fontFamily:"'Space Mono',monospace",fontSize:9,letterSpacing:1,padding:"4px 20px"},
-        setBtn:     {width:44,height:44,borderRadius:10,border:"1px solid rgba(232,255,107,0.25)",background:"transparent",color:"#e8ff6b",fontSize:22,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center"},
-        setDot:     (done)=>({width:40,height:40,borderRadius:8,border:done?"none":"1px solid rgba(255,255,255,0.15)",background:done?"#e8ff6b":"rgba(255,255,255,0.04)",color:done?"#0a0a0f":"#555",fontFamily:"'Space Mono',monospace",fontSize:12,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",transition:"all 0.15s"}),
+        app:       {minHeight:"100vh",background:"#0a0a0f",color:"#f0f0e8",fontFamily:"'DM Sans',sans-serif",position:"relative"},
+        bg:        {position:"fixed",inset:0,background:"radial-gradient(ellipse 80% 60% at 50% -20%, #1a1a2e 0%, #0a0a0f 60%)",zIndex:0,pointerEvents:"none"},
+        grid:      {position:"fixed",inset:0,backgroundImage:"linear-gradient(rgba(232,255,107,0.03) 1px,transparent 1px),linear-gradient(90deg,rgba(232,255,107,0.03) 1px,transparent 1px)",backgroundSize:"60px 60px",zIndex:0,pointerEvents:"none"},
+        content:   {position:"relative",zIndex:1,maxWidth:480,margin:"0 auto",padding:"24px 20px 110px"},
+        header:    {display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:24,paddingTop:8},
+        logo:      {fontFamily:"'Space Mono',monospace",fontSize:20,fontWeight:700,color:"#e8ff6b",letterSpacing:2},
+        card:      {background:"rgba(255,255,255,0.04)",border:"1px solid rgba(232,255,107,0.12)",borderRadius:16,padding:20,marginBottom:12},
+        accentCard:{background:"rgba(232,255,107,0.08)",border:"1px solid rgba(232,255,107,0.3)",borderRadius:16,padding:24,marginBottom:16},
+        btn:       {background:"#e8ff6b",color:"#0a0a0f",border:"none",borderRadius:12,padding:"14px 28px",fontFamily:"'Space Mono',monospace",fontWeight:700,fontSize:14,letterSpacing:1,cursor:"pointer",width:"100%",marginTop:8,display:"block"},
+        btnOutline:{background:"transparent",color:"#e8ff6b",border:"1px solid rgba(232,255,107,0.4)",borderRadius:12,padding:"12px 24px",fontFamily:"'Space Mono',monospace",fontSize:13,letterSpacing:1,cursor:"pointer"},
+        btnSm:     {background:"rgba(232,255,107,0.12)",color:"#e8ff6b",border:"1px solid rgba(232,255,107,0.3)",borderRadius:8,padding:"8px 14px",fontFamily:"'Space Mono',monospace",fontSize:11,letterSpacing:1,cursor:"pointer"},
+        btnDanger: {background:"rgba(255,80,80,0.1)",color:"#ff6b6b",border:"1px solid rgba(255,80,80,0.3)",borderRadius:12,padding:"10px 20px",fontFamily:"'Space Mono',monospace",fontSize:12,cursor:"pointer"},
+        label:     {fontSize:11,letterSpacing:3,color:"#888",fontFamily:"'Space Mono',monospace",marginBottom:8,textTransform:"uppercase",display:"block"},
+        input:     {background:"rgba(255,255,255,0.06)",border:"1px solid rgba(232,255,107,0.2)",borderRadius:10,padding:"12px 16px",color:"#f0f0e8",fontFamily:"'DM Sans',sans-serif",fontSize:16,width:"100%",outline:"none",boxSizing:"border-box"},
+        select:    {background:"rgba(30,30,48,1)",border:"1px solid rgba(232,255,107,0.2)",borderRadius:10,padding:"12px 16px",color:"#f0f0e8",fontFamily:"'DM Sans',sans-serif",fontSize:15,width:"100%",outline:"none",boxSizing:"border-box"},
+        tag:       {display:"inline-block",background:"rgba(232,255,107,0.1)",border:"1px solid rgba(232,255,107,0.25)",borderRadius:6,padding:"4px 10px",fontSize:11,letterSpacing:1,color:"#e8ff6b",fontFamily:"'Space Mono',monospace"},
+        navBar:    {position:"fixed",bottom:0,left:0,right:0,background:"rgba(10,10,15,0.97)",borderTop:"1px solid rgba(232,255,107,0.1)",display:"flex",justifyContent:"space-around",padding:"12px 0 20px",zIndex:100},
+        navBtn:    {background:"none",border:"none",cursor:"pointer",display:"flex",flexDirection:"column",alignItems:"center",gap:4,fontFamily:"'Space Mono',monospace",fontSize:9,letterSpacing:1,padding:"4px 20px"},
+        setBtn:    {width:44,height:44,borderRadius:10,border:"1px solid rgba(232,255,107,0.25)",background:"transparent",color:"#e8ff6b",fontSize:22,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center"},
+        setDot:    (done)=>({width:44,height:44,borderRadius:10,border:done?"none":"1px solid rgba(255,255,255,0.15)",background:done?"#e8ff6b":"rgba(255,255,255,0.04)",color:done?"#0a0a0f":"#555",fontFamily:"'Space Mono',monospace",fontSize:13,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",transition:"all 0.15s",fontWeight:700}),
       };
 
-      const Toast = toast ? <div style={{position:"fixed",top:24,left:"50%",transform:"translateX(-50%)",background:"#e8ff6b",color:"#0a0a0f",padding:"12px 24px",borderRadius:10,fontFamily:"'Space Mono',monospace",fontSize:13,fontWeight:700,zIndex:400,boxShadow:"0 8px 32px rgba(232,255,107,0.3)",whiteSpace:"nowrap"}}>{toast}</div> : null;
+      const Toast = toast ? <div style={{position:"fixed",top:24,left:"50%",transform:"translateX(-50%)",background:"#e8ff6b",color:"#0a0a0f",padding:"12px 24px",borderRadius:10,fontFamily:"'Space Mono',monospace",fontSize:13,fontWeight:700,zIndex:600,boxShadow:"0 8px 32px rgba(232,255,107,0.3)",whiteSpace:"nowrap"}}>{toast}</div> : null;
 
       const NavBar = ({active}) => (
         <nav style={s.navBar}>
@@ -367,10 +356,10 @@
         </nav>
       );
 
-      // ── EXERCISE FORM (reused in modals) ──────────────────────
+      // ── EXERCISE FORM ─────────────────────────────────────────────
       const ExerciseFormFields = () => (
         <div style={{display:"flex",flexDirection:"column",gap:12}}>
-          <div><span style={s.label}>Exercise Name</span><input style={s.input} placeholder="e.g. Cable Fly" value={newEx.name} onChange={e=>setNewEx(p=>({...p,name:e.target.value}))} /></div>
+          <div><span style={s.label}>Name</span><input style={s.input} placeholder="e.g. Cable Fly" value={newEx.name} onChange={e=>setNewEx(p=>({...p,name:e.target.value}))} /></div>
           <div><span style={s.label}>Category</span><select style={s.select} value={newEx.category} onChange={e=>setNewEx(p=>({...p,category:e.target.value}))}>{CATEGORIES.map(c=><option key={c}>{c}</option>)}</select></div>
           <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}>
             <div><span style={s.label}>Unit</span><select style={s.select} value={newEx.unit} onChange={e=>setNewEx(p=>({...p,unit:e.target.value}))}><option value="lbs">lbs</option><option value="kg">kg</option><option value="reps">Bodyweight</option></select></div>
@@ -380,10 +369,11 @@
         </div>
       );
 
-      // ── MODALS ────────────────────────────────────────────────
+      // ── MODALS ────────────────────────────────────────────────────
+      // NOTE: renderModal is always rendered at the top level of every screen
+      // so modals work regardless of which screen is active
       const renderModal = () => {
-        // Browse + add exercise to current preset/custom workout
-        if (modal==="addExToWorkout") {
+        if (modal==="browseAdd") {
           const activeIds = activeTmpl ? [...activeTmpl.exercises,...extraExIds] : customExIds;
           const available = allExercises.filter(ex=>!activeIds.includes(ex.id));
           return (
@@ -392,14 +382,14 @@
               <div style={{maxHeight:"55vh",overflowY:"auto",marginBottom:12}}>
                 {CATEGORIES.map(cat=>{
                   const ces=available.filter(e=>e.category===cat);
-                  if (!ces.length) return null;
+                  if(!ces.length) return null;
                   return (
                     <div key={cat} style={{marginBottom:14}}>
                       <span style={{...s.label,fontSize:9}}>{cat}</span>
                       <div style={{display:"flex",flexWrap:"wrap",gap:6}}>
                         {ces.map(ex=>(
                           <button key={ex.id} onClick={()=>{
-                            if (activeTmpl) setExtraExIds(p=>[...p,ex.id]);
+                            if(activeTmpl) setExtraExIds(p=>[...p,ex.id]);
                             else setCustomExIds(p=>[...p,ex.id]);
                             setModal(null); showToast(ex.name+" added!");
                           }} style={{background:"rgba(255,255,255,0.05)",border:"1px solid rgba(255,255,255,0.1)",borderRadius:8,padding:"7px 12px",color:"#ccc",fontSize:13,cursor:"pointer"}}>
@@ -415,7 +405,6 @@
             </Modal>
           );
         }
-
         if (modal==="createAndAdd") return (
           <Modal onClose={()=>setModal(null)}>
             <span style={{...s.label,fontSize:13,marginBottom:16}}>CREATE & ADD EXERCISE</span>
@@ -423,7 +412,6 @@
             <button style={{...s.btn,marginTop:12}} onClick={()=>saveNewExercise(true)}>CREATE & ADD</button>
           </Modal>
         );
-
         if (modal==="addExercise") return (
           <Modal onClose={()=>setModal(null)}>
             <span style={{...s.label,fontSize:13,marginBottom:16}}>ADD CUSTOM EXERCISE</span>
@@ -431,11 +419,10 @@
             <button style={{...s.btn,marginTop:12}} onClick={()=>saveNewExercise(false)}>ADD EXERCISE</button>
           </Modal>
         );
-
         if (modal==="logPastWorkout") return (
           <Modal onClose={()=>setModal(null)}>
             <span style={{...s.label,fontSize:13,marginBottom:4}}>LOG PAST WORKOUT</span>
-            <p style={{color:"#888",fontSize:13,marginBottom:16,lineHeight:1.5}}>Enter a previous session to calibrate your weight projections.</p>
+            <p style={{color:"#888",fontSize:13,marginBottom:16,lineHeight:1.5}}>Enter a previous session to calibrate weight projections.</p>
             <div style={{marginBottom:16}}><span style={s.label}>Date</span><input style={s.input} type="date" value={pastDate} onChange={e=>setPastDate(e.target.value)} /></div>
             {pastRows.map((row,i)=>(
               <div key={i} style={{...s.card,padding:16,marginBottom:10}}>
@@ -460,11 +447,12 @@
             <button style={s.btn} onClick={savePastWorkout}>SAVE PAST WORKOUT</button>
           </Modal>
         );
-
         return null;
       };
 
-      // ── LOADING ───────────────────────────────────────────────
+      // ── SCREENS ───────────────────────────────────────────────────
+
+      // LOADING
       if (authUser===undefined||dataLoading) return (
         <div style={{...s.app,display:"flex",alignItems:"center",justifyContent:"center"}}>
           <div style={s.bg}/><div style={s.grid}/>
@@ -475,7 +463,7 @@
         </div>
       );
 
-      // ── SIGN IN ───────────────────────────────────────────────
+      // SIGN IN
       if (!authUser) return (
         <div style={{...s.app,display:"flex",alignItems:"center",justifyContent:"center"}}>
           <div style={s.bg}/><div style={s.grid}/>
@@ -491,12 +479,11 @@
         </div>
       );
 
-      // ── PRESET PREVIEW ────────────────────────────────────────
-      // Shows exercises for a preset, lets user add extras, then launches
+      // PRESET PREVIEW
       if (screen==="preset_preview"&&activeTmpl) {
-        const tmpl = activeTmpl;
-        const goal = profile?.goal||"hypertrophy";
-        const allIds = [...tmpl.exercises,...extraExIds];
+        const tmpl=activeTmpl;
+        const goal=profile?.goal||"hypertrophy";
+        const allIds=[...tmpl.exercises,...extraExIds];
         return (
           <div style={s.app}>
             <div style={s.bg}/><div style={s.grid}/>{renderModal()}{Toast}
@@ -507,13 +494,24 @@
               </div>
               <BackBtn onClick={()=>{setActiveTmpl(null);setExtraExIds([]);setScreen("home");}} />
 
-              <h2 style={{fontSize:24,fontWeight:800,marginBottom:4}}>{tmpl.label}</h2>
-              <p style={{color:"#888",fontSize:14,marginBottom:20}}>{allIds.length} exercises · {GOAL_SETS[goal].sets}×{GOAL_SETS[goal].reps} reps</p>
+              <h2 style={{fontSize:24,fontWeight:800,marginBottom:16}}>{tmpl.label}</h2>
 
+              {/* Sets & reps editor */}
+              <div style={{...s.card,marginBottom:16}}>
+                <span style={s.label}>SET & REP SCHEME</span>
+                <div style={{display:"flex",justifyContent:"space-around",paddingTop:8}}>
+                  <Stepper value={previewSets} onChange={setPreviewSets} min={1} label="SETS" />
+                  <div style={{width:1,background:"rgba(255,255,255,0.06)"}}/>
+                  <Stepper value={previewReps} onChange={setPreviewReps} min={1} label="REPS" />
+                </div>
+              </div>
+
+              {/* Exercise list */}
+              <span style={s.label}>EXERCISES ({allIds.length})</span>
               <div style={{marginBottom:8}}>
                 {allIds.map(exId=>{
                   const def=allExercises.find(e=>e.id===exId);
-                  if (!def) return null;
+                  if(!def) return null;
                   const last=getLastForExercise(exId);
                   const weight=last?safeProgressWeight(last.exercise.weight,goal,Math.max(1,Math.round((Date.now()-new Date(last.workout.date))/86400000/7)),def.unit):def.defaultWeight;
                   const isExtra=extraExIds.includes(exId);
@@ -526,7 +524,7 @@
                         </div>
                         <div style={{fontSize:12,color:"#555",marginTop:2,fontFamily:"'Space Mono',monospace"}}>
                           {def.unit==="reps"?"Bodyweight":`${weight} ${def.unit}`}
-                          {last?` · last: ${new Date(last.workout.date).toLocaleDateString("en-US",{month:"short",day:"numeric"})}`:" · first time"}
+                          {last?` · last ${new Date(last.workout.date).toLocaleDateString("en-US",{month:"short",day:"numeric"})}`:" · first time"}
                         </div>
                       </div>
                       {isExtra&&<button onClick={()=>setExtraExIds(p=>p.filter(id=>id!==exId))} style={{background:"none",border:"none",color:"#ff6b6b",cursor:"pointer",fontSize:20,padding:"0 4px",flexShrink:0}}>×</button>}
@@ -535,10 +533,10 @@
                 })}
               </div>
 
-              <button style={{...s.btnOutline,width:"100%",marginBottom:10,marginTop:4}} onClick={()=>setModal("addExToWorkout")}>
+              <button style={{...s.btnOutline,width:"100%",marginBottom:10,marginTop:4}} onClick={()=>setModal("browseAdd")}>
                 + Add Exercise to Today's Workout
               </button>
-              <button style={s.btn} onClick={()=>launchWorkout(tmpl, extraExIds)}>
+              <button style={s.btn} onClick={()=>launchWorkout(tmpl,extraExIds,previewSets,previewReps)}>
                 BEGIN {tmpl.label.toUpperCase()} →
               </button>
             </div>
@@ -546,21 +544,17 @@
         );
       }
 
-      // ── CUSTOM BUILDER ────────────────────────────────────────
+      // CUSTOM BUILDER
       if (screen==="custom_builder") return (
         <div style={s.app}>
           <div style={s.bg}/><div style={s.grid}/>{renderModal()}{Toast}
           <div style={s.content}>
-            <div style={s.header}>
-              <div style={s.logo}>IRONFORM</div>
-              <span style={s.tag}>CUSTOM</span>
-            </div>
+            <div style={s.header}><div style={s.logo}>IRONFORM</div><span style={s.tag}>CUSTOM</span></div>
             <BackBtn onClick={()=>{setCustomExIds([]);setCustomGoal("hypertrophy");setScreen("home");}} />
 
             <h2 style={{fontSize:24,fontWeight:800,marginBottom:6}}>Build Your Workout</h2>
             <p style={{color:"#888",fontSize:14,marginBottom:20,lineHeight:1.5}}>Pick your exercises, then go.</p>
 
-            {/* Goal selector */}
             <div style={{...s.card,marginBottom:16}}>
               <span style={s.label}>Training Goal</span>
               <div style={{display:"flex",gap:8,flexWrap:"wrap",marginTop:4}}>
@@ -572,7 +566,6 @@
               </div>
             </div>
 
-            {/* Selected exercises */}
             {customExIds.length>0&&(
               <div style={s.card}>
                 <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:10}}>
@@ -592,11 +585,10 @@
               </div>
             )}
 
-            {/* Exercise browser by category */}
             <div style={s.card}>
               <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:12}}>
-                <span style={s.label}>BROWSE EXERCISES</span>
-                <button style={s.btnSm} onClick={()=>setModal("addExToWorkout")}>+ Add</button>
+                <span style={s.label}>BROWSE</span>
+                <button style={s.btnSm} onClick={()=>{setActiveTmpl(null);setModal("browseAdd");}}>+ Add</button>
               </div>
               {CATEGORIES.map(cat=>{
                 const ces=allExercises.filter(e=>e.category===cat&&!customExIds.includes(e.id));
@@ -623,78 +615,113 @@
         </div>
       );
 
-      // ── ACTIVE WORKOUT ────────────────────────────────────────
+      // ACTIVE WORKOUT — one exercise at a time
       if (screen==="workout"&&activeWorkout) {
+        const exercises = activeWorkout.exercises;
+        const ex = exercises[currentExIdx];
+        const done = setsForEx(ex);
+        const allDone = done.every(Boolean);
+        const lastRec = getLastForExercise(ex.id);
+        const isLast = currentExIdx===exercises.length-1;
         const progress = totalSets>0?totalDone/totalSets:0;
+
         return (
           <div style={s.app}>
             <div style={s.bg}/><div style={s.grid}/>{Toast}
             <div style={s.content}>
+
+              {/* Top bar */}
               <div style={s.header}>
                 <div style={s.logo}>IRONFORM</div>
                 <button style={s.btnDanger} onClick={cancelWorkout}>CANCEL</button>
               </div>
 
-              {/* Progress bar */}
-              <div style={{...s.card,padding:20,marginBottom:20}}>
-                <div style={{display:"flex",justifyContent:"space-between",marginBottom:12}}>
-                  <div>
-                    <span style={s.label}>{activeWorkout.templateLabel}</span>
-                    <div style={{fontSize:18,fontWeight:800}}>{new Date().toLocaleDateString("en-US",{weekday:"long",month:"short",day:"numeric"})}</div>
-                  </div>
-                  <div style={{textAlign:"right"}}>
-                    <span style={s.label}>Sets Done</span>
-                    <div style={{fontSize:22,fontWeight:800,color:"#e8ff6b"}}>{totalDone}<span style={{color:"#555",fontSize:14}}>/{totalSets}</span></div>
-                  </div>
+              {/* Overall progress */}
+              <div style={{marginBottom:20}}>
+                <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8}}>
+                  <span style={{...s.label,marginBottom:0}}>{activeWorkout.templateLabel} · Exercise {currentExIdx+1} of {exercises.length}</span>
+                  <span style={{fontFamily:"'Space Mono',monospace",fontSize:12,color:"#e8ff6b"}}>{totalDone}/{totalSets} sets</span>
                 </div>
-                <div style={{height:6,background:"rgba(255,255,255,0.06)",borderRadius:3,overflow:"hidden"}}>
-                  <div style={{height:"100%",width:`${progress*100}%`,background:"#e8ff6b",borderRadius:3,transition:"width 0.4s ease"}}/>
+                <div style={{height:4,background:"rgba(255,255,255,0.06)",borderRadius:2,overflow:"hidden"}}>
+                  <div style={{height:"100%",width:`${progress*100}%`,background:"#e8ff6b",borderRadius:2,transition:"width 0.4s ease"}}/>
+                </div>
+
+                {/* Exercise dots navigation */}
+                <div style={{display:"flex",gap:6,marginTop:12,flexWrap:"wrap"}}>
+                  {exercises.map((e,i)=>{
+                    const exDone=setsForEx(e).every(Boolean);
+                    const isCurrent=i===currentExIdx;
+                    return (
+                      <button key={i} onClick={()=>setCurrentExIdx(i)} style={{width:28,height:6,borderRadius:3,border:"none",cursor:"pointer",background:isCurrent?"#e8ff6b":exDone?"rgba(232,255,107,0.4)":"rgba(255,255,255,0.1)",transition:"all 0.2s",padding:0,flexShrink:0}}/>
+                    );
+                  })}
                 </div>
               </div>
 
-              {activeWorkout.exercises.map(ex=>{
-                const done=Array.from({length:ex.sets},(_,i)=>!!completedSets[`${ex.id}_${i}`]);
-                const allDone=done.every(Boolean);
-                const lastRec=getLastForExercise(ex.id);
-                return (
-                  <div key={ex.id} style={{...s.card,opacity:allDone?0.65:1,border:allDone?"1px solid rgba(232,255,107,0.4)":s.card.border}}>
-                    <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:4}}>
-                      <div>
-                        <div style={{fontWeight:800,fontSize:18}}>{ex.name}</div>
-                        <div style={{color:"#888",fontSize:13,marginTop:2}}>{ex.sets} sets × {ex.reps} reps</div>
-                      </div>
-                      {allDone&&<div style={{color:"#e8ff6b",fontSize:22}}>✓</div>}
-                    </div>
-                    {lastRec&&<div style={{fontSize:12,color:"#556",marginBottom:12,fontFamily:"'Space Mono',monospace"}}>
-                      Last: {lastRec.exercise.weight}{lastRec.exercise.unit!=="reps"?lastRec.exercise.unit:""} · {new Date(lastRec.workout.date).toLocaleDateString("en-US",{month:"short",day:"numeric"})}
-                    </div>}
-                    <div style={{display:"flex",alignItems:"center",gap:12,marginBottom:16}}>
-                      <button style={s.setBtn} onClick={()=>adjustWeight(ex.id,-ex.increment)}>−</button>
-                      <div style={{flex:1,textAlign:"center"}}>
-                        <div style={{fontSize:30,fontWeight:900,color:"#e8ff6b",lineHeight:1}}>{ex.weight}</div>
-                        <div style={{fontSize:11,color:"#555",letterSpacing:2,fontFamily:"'Space Mono',monospace"}}>{ex.unit==="reps"?"BODYWEIGHT":ex.unit.toUpperCase()}</div>
-                      </div>
-                      <button style={s.setBtn} onClick={()=>adjustWeight(ex.id,ex.increment)}>+</button>
-                    </div>
-                    <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
-                      {Array.from({length:ex.sets},(_,i)=>(
-                        <button key={i} style={s.setDot(done[i])} onClick={()=>toggleSet(ex.id,i)}>{done[i]?"✓":i+1}</button>
-                      ))}
-                    </div>
-                    <input style={{...s.input,marginTop:12,fontSize:13,padding:"8px 12px"}} placeholder="Notes (optional)..." value={notesMap[ex.id]||""} onChange={e=>setNotesMap(p=>({...p,[ex.id]:e.target.value}))} />
+              {/* Current exercise card */}
+              <div style={{...s.card,padding:24}}>
+                <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:8}}>
+                  <div>
+                    <div style={{fontWeight:900,fontSize:24,lineHeight:1.2}}>{ex.name}</div>
+                    <div style={{color:"#888",fontSize:14,marginTop:4}}>{ex.sets} sets × {ex.reps} reps</div>
                   </div>
-                );
-              })}
+                  {allDone&&<div style={{color:"#e8ff6b",fontSize:28}}>✓</div>}
+                </div>
 
-              <button style={{...s.btn,background:progress>=0.3?"#e8ff6b":"rgba(232,255,107,0.3)",color:progress>=0.3?"#0a0a0f":"#666"}} onClick={progress>=0.3?finishWorkout:undefined}>
-                {progress>=1?"FINISH WORKOUT ✓":`FINISH EARLY (${totalDone}/${totalSets} sets)`}
-              </button>
+                {lastRec&&(
+                  <div style={{fontSize:12,color:"#556",marginBottom:16,fontFamily:"'Space Mono',monospace",background:"rgba(255,255,255,0.03)",borderRadius:8,padding:"8px 12px"}}>
+                    LAST SESSION: {lastRec.exercise.weight}{lastRec.exercise.unit!=="reps"?lastRec.exercise.unit:""} · {new Date(lastRec.workout.date).toLocaleDateString("en-US",{month:"short",day:"numeric",year:"numeric"})}
+                  </div>
+                )}
+
+                {/* Weight adjuster */}
+                <div style={{display:"flex",alignItems:"center",gap:16,marginBottom:24,justifyContent:"center"}}>
+                  <button style={s.setBtn} onClick={()=>adjustWeight(ex.id,-ex.increment)}>−</button>
+                  <div style={{textAlign:"center",minWidth:100}}>
+                    <div style={{fontSize:48,fontWeight:900,color:"#e8ff6b",lineHeight:1}}>{ex.weight}</div>
+                    <div style={{fontSize:11,color:"#555",letterSpacing:2,fontFamily:"'Space Mono',monospace",marginTop:2}}>{ex.unit==="reps"?"BODYWEIGHT":ex.unit.toUpperCase()}</div>
+                  </div>
+                  <button style={s.setBtn} onClick={()=>adjustWeight(ex.id,ex.increment)}>+</button>
+                </div>
+
+                {/* Set dots */}
+                <span style={s.label}>TAP TO COMPLETE SETS</span>
+                <div style={{display:"flex",gap:10,flexWrap:"wrap",marginBottom:16}}>
+                  {done.map((d,i)=>(
+                    <button key={i} style={s.setDot(d)} onClick={()=>toggleSet(ex.id,i)}>
+                      {d?"✓":i+1}
+                    </button>
+                  ))}
+                </div>
+
+                {/* Notes */}
+                <input style={{...s.input,fontSize:13,padding:"10px 14px"}} placeholder="Notes (optional)..." value={noteFor[ex.id]||""} onChange={e=>setNoteFor(p=>({...p,[ex.id]:e.target.value}))} />
+              </div>
+
+              {/* Navigation */}
+              <div style={{display:"grid",gridTemplateColumns:currentExIdx>0?"1fr 1fr":"1fr",gap:10,marginTop:4}}>
+                {currentExIdx>0&&(
+                  <button style={{...s.btnOutline,width:"100%",textAlign:"center"}} onClick={()=>setCurrentExIdx(i=>i-1)}>
+                    ← PREV
+                  </button>
+                )}
+                {!isLast?(
+                  <button style={s.btn} onClick={()=>setCurrentExIdx(i=>i+1)}>
+                    NEXT EXERCISE →
+                  </button>
+                ):(
+                  <button style={{...s.btn,background:progress>=0.3?"#e8ff6b":"rgba(232,255,107,0.3)",color:progress>=0.3?"#0a0a0f":"#666",marginTop:0}} onClick={progress>=0.3?finishWorkout:undefined}>
+                    {progress>=1?"FINISH WORKOUT ✓":`FINISH EARLY (${totalDone}/${totalSets} sets)`}
+                  </button>
+                )}
+              </div>
+
             </div>
           </div>
         );
       }
 
-      // ── HISTORY ───────────────────────────────────────────────
+      // HISTORY
       if (screen==="history") return (
         <div style={s.app}>
           <div style={s.bg}/><div style={s.grid}/>{renderModal()}{Toast}
@@ -735,7 +762,7 @@
         </div>
       );
 
-      // ── PROFILE ───────────────────────────────────────────────
+      // PROFILE
       if (screen==="profile") return (
         <div style={s.app}>
           <div style={s.bg}/><div style={s.grid}/>{renderModal()}{Toast}
@@ -751,9 +778,8 @@
               </div>
               <div style={{color:"#888",marginTop:4}}>Goal: <span style={{color:"#e8ff6b"}}>{GOALS[profile?.goal]?.label}</span> · {workouts.length} workouts logged</div>
             </div>
-
             <div style={s.card}>
-              <span style={s.label}>Training Goal</span>
+              <span style={s.label}>Default Training Goal</span>
               <div style={{display:"flex",flexDirection:"column",gap:8,marginTop:8}}>
                 {Object.entries(GOALS).map(([key,g])=>(
                   <button key={key} onClick={async()=>{await saveProfile({...profile,goal:key});showToast("Goal updated!");}}
@@ -764,7 +790,6 @@
                 ))}
               </div>
             </div>
-
             <div style={s.card}>
               <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:12}}>
                 <span style={s.label}>Custom Exercises ({customExs.length})</span>
@@ -772,69 +797,51 @@
               </div>
               {customExs.length===0?<p style={{color:"#555",fontSize:13}}>None yet.</p>:customExs.map(ex=>(
                 <div key={ex._fid||ex.id} style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"8px 0",borderBottom:"1px solid rgba(255,255,255,0.04)"}}>
-                  <div>
-                    <span style={{fontSize:14}}>{ex.name}</span>
-                    <div style={{fontSize:11,color:"#555"}}>{ex.category} · {ex.unit==="reps"?"bodyweight":`${ex.defaultWeight}${ex.unit}`}</div>
-                  </div>
+                  <div><span style={{fontSize:14}}>{ex.name}</span><div style={{fontSize:11,color:"#555"}}>{ex.category} · {ex.unit==="reps"?"bodyweight":`${ex.defaultWeight}${ex.unit}`}</div></div>
                 </div>
               ))}
             </div>
-
             <button style={{...s.btnDanger,width:"100%",marginTop:8}} onClick={handleSignOut}>Sign Out</button>
           </div>
           <NavBar active="profile"/>
         </div>
       );
 
-      // ── HOME — FOUR TILE LAYOUT ───────────────────────────────
+      // HOME
       const tiles = [
-        ...WORKOUT_TEMPLATES.map(tmpl => {
+        ...WORKOUT_TEMPLATES.map(tmpl=>{
           const last=[...workouts].reverse().find(w=>w.templateLabel===tmpl.label);
           const days=last?Math.floor((Date.now()-new Date(last.date))/86400000):null;
-          return {
-            id:tmpl.id, emoji:tmpl.emoji, label:tmpl.label,
-            sub:days!==null?(days===0?"Today":`${days}d ago`):"Never done",
-            color:tmpl.color, colorBg:tmpl.colorBg, colorBorder:tmpl.colorBorder,
-            onClick:()=>{setActiveTmpl(tmpl);setExtraExIds([]);setScreen("preset_preview");},
-          };
+          return {id:tmpl.id,emoji:tmpl.emoji,label:tmpl.label,sub:days!==null?(days===0?"Today":`${days}d ago`):"Never done",color:tmpl.color,colorBg:tmpl.colorBg,colorBorder:tmpl.colorBorder,
+            onClick:()=>{
+              setActiveTmpl(tmpl);setExtraExIds([]);
+              const sr=GOAL_SETS[profile?.goal||"hypertrophy"];
+              setPreviewSets(sr.sets);setPreviewReps(sr.reps);
+              setScreen("preset_preview");
+            }};
         }),
-        {
-          id:"custom", emoji:"⚡", label:"Custom",
-          sub:"Build your own",
-          color:"#c084fc", colorBg:"rgba(192,132,252,0.08)", colorBorder:"rgba(192,132,252,0.35)",
-          onClick:()=>{setCustomExIds([]);setCustomGoal("hypertrophy");setScreen("custom_builder");},
-        },
+        {id:"custom",emoji:"⚡",label:"Custom",sub:"Build your own",color:"#c084fc",colorBg:"rgba(192,132,252,0.08)",colorBorder:"rgba(192,132,252,0.35)",
+          onClick:()=>{setCustomExIds([]);setCustomGoal("hypertrophy");setScreen("custom_builder");}},
       ];
 
-      const lastWorkout = workouts[workouts.length-1];
-      const daysSinceLast = lastWorkout ? Math.floor((Date.now()-new Date(lastWorkout.date))/86400000) : null;
-
-      // Workout streak calculation
-      const streak = (() => {
-        if (!workouts.length) return 0;
-        let s=0; const day=new Date(); day.setHours(0,0,0,0);
-        const dates=new Set(workouts.map(w=>new Date(w.date).toDateString()));
-        const d=new Date(day);
-        while(dates.has(d.toDateString())){s++;d.setDate(d.getDate()-1);}
-        return s;
-      })();
+      const lastWorkout=workouts[workouts.length-1];
+      const daysSinceLast=lastWorkout?Math.floor((Date.now()-new Date(lastWorkout.date))/86400000):null;
+      const streak=(()=>{if(!workouts.length)return 0;let s=0;const d=new Date();d.setHours(0,0,0,0);const dates=new Set(workouts.map(w=>new Date(w.date).toDateString()));const cur=new Date(d);while(dates.has(cur.toDateString())){s++;cur.setDate(cur.getDate()-1);}return s;})();
 
       return (
         <div style={s.app}>
-          <div style={s.bg}/><div style={s.grid}/>{Toast}
+          <div style={s.bg}/><div style={s.grid}/>
+          {/* Modals always rendered on home screen too — this was the bug fix */}
+          {renderModal()}
+          {Toast}
           <div style={s.content}>
             <div style={s.header}>
               <div style={s.logo}>IRONFORM</div>
               {authUser.photoURL&&<img src={authUser.photoURL} alt="" style={{width:30,height:30,borderRadius:"50%",border:"1px solid rgba(232,255,107,0.3)",cursor:"pointer"}} onClick={()=>setScreen("profile")}/>}
             </div>
 
-            {/* Stats */}
             <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:10,marginBottom:24}}>
-              {[
-                {label:"WORKOUTS", value:workouts.length},
-                {label:"DAYS REST", value:daysSinceLast===null?"—":daysSinceLast},
-                {label:"STREAK",   value:streak},
-              ].map(stat=>(
+              {[{label:"WORKOUTS",value:workouts.length},{label:"DAYS REST",value:daysSinceLast===null?"—":daysSinceLast},{label:"STREAK",value:streak}].map(stat=>(
                 <div key={stat.label} style={{...s.card,padding:16,textAlign:"center",marginBottom:0}}>
                   <div style={{fontSize:26,fontWeight:900,color:"#e8ff6b",lineHeight:1}}>{stat.value}</div>
                   <span style={{...s.label,marginBottom:0,marginTop:4}}>{stat.label}</span>
@@ -842,7 +849,6 @@
               ))}
             </div>
 
-            {/* 2×2 workout tiles */}
             <span style={s.label}>START A WORKOUT</span>
             <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12,marginBottom:20}}>
               {tiles.map(tile=>(
@@ -854,19 +860,19 @@
               ))}
             </div>
 
-            {/* Quick actions */}
             <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginBottom:16}}>
-              <button style={{...s.card,marginBottom:0,cursor:"pointer",textAlign:"center",padding:14,border:"1px solid rgba(100,180,255,0.2)",background:"rgba(100,180,255,0.05)"}} onClick={()=>{setPastDate("");setPastRows([{exId:"",weight:"",reps:"",sets:""}]);setModal("logPastWorkout");}}>
+              <button style={{...s.card,marginBottom:0,cursor:"pointer",textAlign:"center",padding:14,border:"1px solid rgba(100,180,255,0.2)",background:"rgba(100,180,255,0.05)"}}
+                onClick={()=>{setPastDate("");setPastRows([{exId:"",weight:"",reps:"",sets:""}]);setModal("logPastWorkout");}}>
                 <div style={{fontSize:20,marginBottom:4}}>📥</div>
                 <div style={{fontSize:11,fontFamily:"'Space Mono',monospace",color:"#7ec8ff",letterSpacing:1}}>LOG PAST</div>
               </button>
-              <button style={{...s.card,marginBottom:0,cursor:"pointer",textAlign:"center",padding:14,border:"1px solid rgba(192,132,252,0.2)",background:"rgba(192,132,252,0.05)"}} onClick={()=>{setNewEx({name:"",category:"Chest",unit:"lbs",defaultWeight:45,increment:5});setModal("addExercise");}}>
+              <button style={{...s.card,marginBottom:0,cursor:"pointer",textAlign:"center",padding:14,border:"1px solid rgba(192,132,252,0.2)",background:"rgba(192,132,252,0.05)"}}
+                onClick={()=>{setNewEx({name:"",category:"Chest",unit:"lbs",defaultWeight:45,increment:5});setModal("addExercise");}}>
                 <div style={{fontSize:20,marginBottom:4}}>➕</div>
                 <div style={{fontSize:11,fontFamily:"'Space Mono',monospace",color:"#c084fc",letterSpacing:1}}>NEW LIFT</div>
               </button>
             </div>
 
-            {/* Last session */}
             {lastWorkout&&(
               <div style={s.card}>
                 <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:12}}>
