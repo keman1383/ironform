@@ -77,8 +77,17 @@
     const { useState, useEffect, useRef, useCallback } = React;
 
     // ── VERSION INFO ──────────────────────────────────────────────
-    const APP_VERSION = "2.1.0";
+    const APP_VERSION = "2.2.0";
     const RELEASE_HISTORY = [
+      {
+        version: "2.2.0",
+        date: "2026-03-01",
+        features: [
+          "Per-set weight & reps now saved to Firestore when finishing a live workout",
+          "Exercise suggestions in Add Exercise modal — surfaces exercises not done in 7+ days",
+          "Calendar month no longer resets when selecting a date (calYear/calMonth lifted to App state)",
+        ],
+      },
       {
         version: "2.1.0",
         date: "2026-03-01",
@@ -89,7 +98,7 @@
           "History: past notes now displayed with gold bubble indicator, tap to expand",
           "History edit modal: weight, reps, sets editable per exercise",
           "Log past workout: per-set weight and reps logging (each set tracked individually)",
-          "Log past workout: date field width fixed — no more horizontal scroll",
+          "Log past workout: date field width fixed",
           "History: multi-weight / multi-rep display for logged sets",
           "Default sets changed to 3",
         ],
@@ -107,7 +116,7 @@
           "History exercises now editable",
           "Goals chart data points clickable — shows date and weight",
           "Add exercise screen now centered vertically",
-          "Past workout import modal requires X button to close (no accidental dismiss)",
+          "Past workout import modal requires X button to close",
           "History workouts now collapsible dropdowns",
           "Press Machine recategorized to Chest",
           "Import screen auto-scrolls when exercise added",
@@ -307,7 +316,6 @@
       const lastH=history[history.length-1];
       const projLine=projDate&&projDate instanceof Date?
         `M${tx(new Date(lastH.date).getTime())},${ty(lastH.weight)} L${tx(projDate.getTime())},${ty(targetWeight)}`:null;
-
       return (
         <div style={{position:"relative"}}>
           <svg viewBox={`0 0 ${width} ${height}`} style={{width:"100%",height:height,overflow:"visible"}}>
@@ -337,6 +345,60 @@
       );
     }
 
+    // ── CALENDAR VIEW ─────────────────────────────────────────────
+    // calYear/calMonth live in App so month survives re-renders
+    function CalendarView({workouts, onSelectDate, selectedDate, calYear, calMonth, setCalYear, setCalMonth}) {
+      const workoutDateMap=new Map();
+      workouts.forEach(w=>{
+        const ds=new Date(w.date).toDateString();
+        if(!workoutDateMap.has(ds)) workoutDateMap.set(ds,[]);
+        workoutDateMap.get(ds).push(w);
+      });
+      const firstDay=new Date(calYear,calMonth,1).getDay();
+      const daysInMonth=new Date(calYear,calMonth+1,0).getDate();
+      const monthName=new Date(calYear,calMonth).toLocaleDateString("en-US",{month:"long",year:"numeric"});
+      const cells=[];
+      for(let i=0;i<firstDay;i++) cells.push(null);
+      for(let d=1;d<=daysInMonth;d++) cells.push(d);
+      const prevMonth=()=>{ if(calMonth===0){setCalMonth(11);setCalYear(y=>y-1);}else setCalMonth(m=>m-1); };
+      const nextMonth=()=>{ if(calMonth===11){setCalMonth(0);setCalYear(y=>y+1);}else setCalMonth(m=>m+1); };
+      return(
+        <div style={{marginTop:16}}>
+          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:12}}>
+            <button onClick={prevMonth} style={{background:"none",border:"none",color:"var(--gold)",cursor:"pointer",fontSize:20}}>‹</button>
+            <span style={{fontFamily:"'DM Mono',monospace",fontSize:11,letterSpacing:2,color:"var(--cream)",textTransform:"uppercase"}}>{monthName}</span>
+            <button onClick={nextMonth} style={{background:"none",border:"none",color:"var(--gold)",cursor:"pointer",fontSize:20}}>›</button>
+          </div>
+          <div style={{display:"grid",gridTemplateColumns:"repeat(7,1fr)",gap:3,textAlign:"center"}}>
+            {["Su","Mo","Tu","We","Th","Fr","Sa"].map(d=>(
+              <div key={d} style={{fontFamily:"'DM Mono',monospace",fontSize:9,color:"var(--muted)",paddingBottom:4,letterSpacing:1}}>{d}</div>
+            ))}
+            {cells.map((d,i)=>{
+              if(!d) return <div key={i}/>;
+              const dateStr=new Date(calYear,calMonth,d).toDateString();
+              const hasWorkout=workoutDateMap.has(dateStr);
+              const isToday=new Date().toDateString()===dateStr;
+              const isSelected=selectedDate===dateStr;
+              return(
+                <div key={i} onClick={()=>hasWorkout&&onSelectDate(isSelected?null:dateStr)} style={{
+                  borderRadius:6,padding:"6px 2px",cursor:hasWorkout?"pointer":"default",
+                  background:isSelected?"rgba(200,146,42,0.45)":hasWorkout?"rgba(200,146,42,0.25)":isToday?"rgba(200,146,42,0.06)":"transparent",
+                  border:isSelected?"1px solid var(--gold)":isToday?"1px solid rgba(200,146,42,0.4)":"1px solid transparent",
+                  fontFamily:"'DM Mono',monospace",fontSize:12,
+                  color:isSelected?"var(--gold)":hasWorkout?"var(--gold)":isToday?"var(--cream2)":"var(--muted)",
+                  fontWeight:hasWorkout?"600":"400",
+                  position:"relative",
+                }}>
+                  {d}
+                  {hasWorkout&&<div style={{position:"absolute",bottom:2,left:"50%",transform:"translateX(-50%)",width:4,height:4,borderRadius:2,background:"var(--gold)"}}/>}
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      );
+    }
+
     // ── APP ───────────────────────────────────────────────────────
     function App() {
       const [authUser,      setAuthUser]      = useState(undefined);
@@ -353,7 +415,6 @@
       const [removedExIds,  setRemovedExIds]  = useState([]);
       const [previewSets,   setPreviewSets]   = useState(3);
       const [previewReps,   setPreviewReps]   = useState(10);
-      // per-exercise rep scheme overrides on the preview page
       const [exRepSchemes,  setExRepSchemes]  = useState({});
       const [activeWorkout, setActiveWorkout] = useState(null);
       const [currentExIdx,  setCurrentExIdx]  = useState(0);
@@ -375,7 +436,6 @@
       const [newEx,         setNewEx]         = useState({name:"",category:"Chest",unit:"lbs",defaultWeight:45,increment:5});
       const [newLiftGoal,   setNewLiftGoal]   = useState({exId:"",targetWeight:""});
       const [pastDate,      setPastDate]      = useState("");
-      // pastRows now supports per-set data: [{exId, sets:[{weight,reps}]}]
       const [pastRows,      setPastRows]      = useState([{exId:"",sets:[{weight:"",reps:""}]}]);
       const [signInErr,     setSignInErr]     = useState(null);
       const [signingIn,     setSigningIn]     = useState(false);
@@ -388,7 +448,10 @@
       const [expandedExNote,   setExpandedExNote]   = useState({});
       const [editingWorkout,   setEditingWorkout]   = useState(null);
       const [historyTab,       setHistoryTab]       = useState("log");
+      // Calendar state lifted to App so month persists across re-renders
       const [calSelectedDate,  setCalSelectedDate]  = useState(null);
+      const [calYear,          setCalYear]          = useState(new Date().getFullYear());
+      const [calMonth,         setCalMonth]         = useState(new Date().getMonth());
 
       const allExercises = [...BUILTIN_EXERCISES, ...customExs];
 
@@ -448,6 +511,13 @@
         return null;
       };
 
+      // Returns days since an exercise was last done, or null if never
+      const daysSinceExercise=(exId)=>{
+        const last=getLastForExercise(exId);
+        if(!last) return null;
+        return (Date.now()-new Date(last.workout.date))/86400000;
+      };
+
       const buildExerciseList=(exIdList,sets,reps)=>{
         const goal=profile?.goal||"hypertrophy";
         return exIdList.map(exId=>{
@@ -464,20 +534,15 @@
         }).filter(Boolean);
       };
 
-      const buildSetReps=(sets, reps, scheme)=>{
-        if(scheme==="dropset"){
-          return Array.from({length:sets},(_,i)=>Math.max(1, reps - i*2));
-        } else if(scheme==="pyramid"){
+      const buildSetReps=(sets,reps,scheme)=>{
+        if(scheme==="dropset") return Array.from({length:sets},(_,i)=>Math.max(1,reps-i*2));
+        if(scheme==="pyramid"){
           const half=Math.floor(sets/2);
-          return Array.from({length:sets},(_,i)=>{
-            if(i<=half) return reps + i*2;
-            return reps + (sets-1-i)*2;
-          });
+          return Array.from({length:sets},(_,i)=>i<=half?reps+i*2:reps+(sets-1-i)*2);
         }
         return Array.from({length:sets},()=>reps);
       };
 
-      // perExSchemes: {[exId]: "standard"|"dropset"|"pyramid"}
       const launchWorkout=(tmpl,extras,removed,sets,reps,perExSchemes)=>{
         const allIds=[...tmpl.exercises,...extras].filter(id=>!removed.includes(id));
         const exercises=buildExerciseList(allIds,sets,reps);
@@ -495,31 +560,44 @@
         const sr=GOAL_SETS[customGoal];
         const exercises=buildExerciseList(customExIds,sr.sets,sr.reps);
         const setRepsMap={};
-        exercises.forEach(ex=>{
-          setRepsMap[ex.id]=buildSetReps(sr.sets,sr.reps,"standard");
-        });
+        exercises.forEach(ex=>{ setRepsMap[ex.id]=buildSetReps(sr.sets,sr.reps,"standard"); });
         setActiveWorkout({date:new Date().toISOString(),exercises,completed:false,templateLabel:"Custom",setRepsMap,perExSchemes:{}});
         setCurrentExIdx(0);setCompletedSets({});setPerSetData({});setNoteFor({});setSummaryData(null);
         setScreen("workout");
       };
 
+      // ── FINISH WORKOUT — saves per-set data to each exercise ──
       const finishWorkout=async()=>{
-        const w={...activeWorkout,completed:true};
+        const exercisesWithSetData=activeWorkout.exercises.map(ex=>{
+          const setRepsArr=activeWorkout.setRepsMap?.[ex.id]||Array(ex.sets).fill(ex.reps);
+          const setData=Array.from({length:ex.sets},(_,i)=>{
+            const key=`${ex.id}_${i}`;
+            return{
+              weight: perSetData[key]?.weight ?? ex.weight,
+              reps:   perSetData[key]?.reps   ?? setRepsArr[i],
+            };
+          });
+          return{...ex, setData, note:noteFor[ex.id]||""};
+        });
+
+        const w={...activeWorkout, exercises:exercisesWithSetData, completed:true};
         await addWorkoutRecord(w);
+
         const summary={
           templateLabel:w.templateLabel,
           date:w.date,
-          exercises:w.exercises.map(ex=>{
+          exercises:exercisesWithSetData.map(ex=>{
             const doneSets=Array.from({length:ex.sets},(_,i)=>!!completedSets[`${ex.id}_${i}`]);
             const completed=doneSets.filter(Boolean).length;
             const last=getLastForExercise(ex.id);
             const improved=last&&ex.weight>last.exercise.weight;
-            const note=noteFor[ex.id]||"";
             const matchedGoals=liftGoals.filter(g=>g.exId===ex.id&&ex.weight>=g.targetWeight);
-            return{...ex,completedSets:completed,totalSets:ex.sets,improved,note,matchedGoals};
+            return{...ex,completedSets:completed,totalSets:ex.sets,improved,matchedGoals};
           }),
         };
         setSummaryData(summary);
+        clearInterval(restIntervalRef.current);
+        setRestTimer(null);
         setActiveWorkout(null);setActiveTmpl(null);setExtraExIds([]);setRemovedExIds([]);setExRepSchemes({});
         setScreen("summary");
       };
@@ -597,46 +675,29 @@
       };
 
       // ── PAST WORKOUT HELPERS ──────────────────────────────────
-      // pastRows: [{exId, sets:[{weight,reps}]}]
       const addPastRow=()=>{
         setPastRows(p=>[...p,{exId:"",sets:[{weight:"",reps:""}]}]);
         setTimeout(()=>pastRowsEndRef.current?.scrollIntoView({behavior:"smooth"}),50);
       };
-
-      const addSetToPastRow=(rowIdx)=>{
-        setPastRows(p=>p.map((r,i)=>i===rowIdx?{...r,sets:[...r.sets,{weight:"",reps:""}]}:r));
-      };
-
-      const removePastSetFromRow=(rowIdx,setIdx)=>{
-        setPastRows(p=>p.map((r,i)=>{
-          if(i!==rowIdx) return r;
-          const newSets=r.sets.filter((_,si)=>si!==setIdx);
-          return{...r,sets:newSets.length>0?newSets:[{weight:"",reps:""}]};
-        }));
-      };
-
-      const updatePastRowSet=(rowIdx,setIdx,field,val)=>{
-        setPastRows(p=>p.map((r,i)=>i!==rowIdx?r:{...r,sets:r.sets.map((s,si)=>si!==setIdx?s:{...s,[field]:val})}));
-      };
+      const addSetToPastRow=(rowIdx)=>setPastRows(p=>p.map((r,i)=>i===rowIdx?{...r,sets:[...r.sets,{weight:"",reps:""}]}:r));
+      const removePastSetFromRow=(rowIdx,setIdx)=>setPastRows(p=>p.map((r,i)=>{
+        if(i!==rowIdx) return r;
+        const newSets=r.sets.filter((_,si)=>si!==setIdx);
+        return{...r,sets:newSets.length>0?newSets:[{weight:"",reps:""}]};
+      }));
+      const updatePastRowSet=(rowIdx,setIdx,field,val)=>setPastRows(p=>p.map((r,i)=>i!==rowIdx?r:{...r,sets:r.sets.map((s,si)=>si!==setIdx?s:{...s,[field]:val})}));
 
       const savePastWorkout=async()=>{
         if(!pastDate) return;
         const exercises=pastRows.filter(r=>r.exId&&r.sets.some(s=>s.weight!==""&&s.reps!=="")).map(r=>{
           const def=allExercises.find(e=>e.id===r.exId);
           const validSets=r.sets.filter(s=>s.weight!==""&&s.reps!=="");
-          // Use first set's weight as the main weight for progress tracking, store all sets
           const firstWeight=Number(validSets[0]?.weight)||0;
           const firstReps=Number(validSets[0]?.reps)||0;
           return{
-            id:r.exId,
-            name:def?.name||r.exId,
-            category:def?.category||"Other",
-            weight:firstWeight,
-            unit:def?.unit||"lbs",
-            sets:validSets.length,
-            reps:firstReps,
+            id:r.exId,name:def?.name||r.exId,category:def?.category||"Other",
+            weight:firstWeight,unit:def?.unit||"lbs",sets:validSets.length,reps:firstReps,
             increment:def?.increment||5,
-            // Store per-set detail
             setData:validSets.map(s=>({weight:Number(s.weight)||0,reps:Number(s.reps)||0})),
           };
         });
@@ -655,64 +716,6 @@
         });
         return hist.sort((a,b)=>new Date(a.date)-new Date(b.date));
       };
-
-      // ── CALENDAR VIEW ─────────────────────────────────────────
-      function CalendarView({workouts, onSelectDate, selectedDate}) {
-        const [calYear,  setCalYear]  = useState(new Date().getFullYear());
-        const [calMonth, setCalMonth] = useState(new Date().getMonth());
-
-        const workoutDateMap=new Map();
-        workouts.forEach(w=>{
-          const ds=new Date(w.date).toDateString();
-          if(!workoutDateMap.has(ds)) workoutDateMap.set(ds,[]);
-          workoutDateMap.get(ds).push(w);
-        });
-
-        const firstDay=new Date(calYear,calMonth,1).getDay();
-        const daysInMonth=new Date(calYear,calMonth+1,0).getDate();
-        const monthName=new Date(calYear,calMonth).toLocaleDateString("en-US",{month:"long",year:"numeric"});
-        const cells=[];
-        for(let i=0;i<firstDay;i++) cells.push(null);
-        for(let d=1;d<=daysInMonth;d++) cells.push(d);
-        const prevMonth=()=>{ if(calMonth===0){setCalMonth(11);setCalYear(y=>y-1);}else setCalMonth(m=>m-1); };
-        const nextMonth=()=>{ if(calMonth===11){setCalMonth(0);setCalYear(y=>y+1);}else setCalMonth(m=>m+1); };
-
-        return(
-          <div style={{marginTop:16}}>
-            <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:12}}>
-              <button onClick={prevMonth} style={{background:"none",border:"none",color:"var(--gold)",cursor:"pointer",fontSize:20}}>‹</button>
-              <span style={{fontFamily:"'DM Mono',monospace",fontSize:11,letterSpacing:2,color:"var(--cream)",textTransform:"uppercase"}}>{monthName}</span>
-              <button onClick={nextMonth} style={{background:"none",border:"none",color:"var(--gold)",cursor:"pointer",fontSize:20}}>›</button>
-            </div>
-            <div style={{display:"grid",gridTemplateColumns:"repeat(7,1fr)",gap:3,textAlign:"center"}}>
-              {["Su","Mo","Tu","We","Th","Fr","Sa"].map(d=>(
-                <div key={d} style={{fontFamily:"'DM Mono',monospace",fontSize:9,color:"var(--muted)",paddingBottom:4,letterSpacing:1}}>{d}</div>
-              ))}
-              {cells.map((d,i)=>{
-                if(!d) return <div key={i}/>;
-                const dateStr=new Date(calYear,calMonth,d).toDateString();
-                const hasWorkout=workoutDateMap.has(dateStr);
-                const isToday=new Date().toDateString()===dateStr;
-                const isSelected=selectedDate===dateStr;
-                return(
-                  <div key={i} onClick={()=>hasWorkout&&onSelectDate(isSelected?null:dateStr)} style={{
-                    borderRadius:6,padding:"6px 2px",cursor:hasWorkout?"pointer":"default",
-                    background:isSelected?"rgba(200,146,42,0.45)":hasWorkout?"rgba(200,146,42,0.25)":isToday?"rgba(200,146,42,0.06)":"transparent",
-                    border:isSelected?"1px solid var(--gold)":isToday?"1px solid rgba(200,146,42,0.4)":"1px solid transparent",
-                    fontFamily:"'DM Mono',monospace",fontSize:12,
-                    color:isSelected?"var(--gold)":hasWorkout?"var(--gold)":isToday?"var(--cream2)":"var(--muted)",
-                    fontWeight:hasWorkout?"600":"400",
-                    position:"relative",
-                  }}>
-                    {d}
-                    {hasWorkout&&<div style={{position:"absolute",bottom:2,left:"50%",transform:"translateX(-50%)",width:4,height:4,borderRadius:2,background:"var(--gold)"}}/>}
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-        );
-      }
 
       // ── STYLES ────────────────────────────────────────────────
       const s={
@@ -737,23 +740,17 @@
         setDot:    (done)=>({width:46,height:46,borderRadius:8,border:done?"none":"1px solid var(--border2)",background:done?"var(--gold)":"var(--surface)",color:done?"var(--bg)":"var(--muted)",fontFamily:"'DM Mono',monospace",fontSize:13,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",transition:"all 0.15s",fontWeight:500}),
       };
 
-      const Toast=toast?<div style={{position:"fixed",top:24,left:"50%",transform:"translateX(-50%)",background:"var(--gold)",color:"var(--bg)",padding:"11px 22px",borderRadius:6,fontFamily:"'DM Mono',monospace",fontSize:12,letterSpacing:2,fontWeight:500,zIndex:600,boxShadow:"0 6px 24px rgba(200,146,42,0.4)",whiteSpace:"nowrap",textTransform:"uppercase"}}>{toast}</div>:null;
+      const Toast=toast?(
+        <div style={{position:"fixed",top:24,left:"50%",transform:"translateX(-50%)",background:"var(--gold)",color:"var(--bg)",padding:"11px 22px",borderRadius:6,fontFamily:"'DM Mono',monospace",fontSize:12,letterSpacing:2,fontWeight:500,zIndex:600,boxShadow:"0 6px 24px rgba(200,146,42,0.4)",whiteSpace:"nowrap",textTransform:"uppercase"}}>{toast}</div>
+      ):null;
 
-      // ── REST TIMER MODAL ──────────────────────────────────────
       const RestModal=restTimer!==null?(
         <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.75)",zIndex:600,display:"flex",alignItems:"center",justifyContent:"center"}}>
           <div style={{background:"var(--surface)",border:"1px solid var(--border2)",borderRadius:20,padding:"44px 56px",textAlign:"center",boxShadow:"0 8px 48px rgba(0,0,0,0.7)"}}>
             <div style={{fontFamily:"'DM Mono',monospace",fontSize:10,letterSpacing:5,color:"var(--muted)",textTransform:"uppercase",marginBottom:14}}>Rest</div>
-            <div style={{
-              fontFamily:"'Playfair Display',serif",
-              fontSize:84,
-              fontWeight:900,
-              lineHeight:1,
-              color: restTimer<=10?"var(--brick2)":restTimer<=30?"var(--gold2)":"var(--gold)",
-              transition:"color 0.5s",
-            }}>{restTimer}</div>
+            <div style={{fontFamily:"'Playfair Display',serif",fontSize:84,fontWeight:900,lineHeight:1,color:restTimer<=10?"var(--brick2)":restTimer<=30?"var(--gold2)":"var(--gold)",transition:"color 0.5s"}}>{restTimer}</div>
             <div style={{fontFamily:"'DM Mono',monospace",fontSize:10,color:"var(--muted)",letterSpacing:3,marginTop:10,textTransform:"uppercase"}}>seconds</div>
-            <div style={{marginTop:6,height:3,background:"var(--surface2)",borderRadius:2,overflow:"hidden",width:120,margin:"14px auto 0"}}>
+            <div style={{height:3,background:"var(--surface2)",borderRadius:2,overflow:"hidden",width:120,margin:"14px auto 0"}}>
               <div style={{height:"100%",width:`${(restTimer/60)*100}%`,background:"var(--gold)",borderRadius:2,transition:"width 1s linear"}}/>
             </div>
             <button onClick={()=>{clearInterval(restIntervalRef.current);setRestTimer(null);}} style={{marginTop:24,background:"none",border:"1px solid var(--border2)",borderRadius:8,padding:"10px 28px",color:"var(--muted)",fontFamily:"'DM Mono',monospace",fontSize:10,letterSpacing:2,cursor:"pointer",textTransform:"uppercase"}}>Skip</button>
@@ -776,15 +773,9 @@
         <div style={{display:"flex",flexDirection:"column",gap:12}}>
           <div>
             <span style={s.label}>Name</span>
-            <input
-              style={s.input}
-              placeholder="e.g. Cable Fly"
-              value={newEx.name}
+            <input style={s.input} placeholder="e.g. Cable Fly" value={newEx.name}
               onChange={e=>{const v=e.target.value;setNewEx(p=>({...p,name:v}));}}
-              autoComplete="off"
-              autoCorrect="off"
-              autoCapitalize="words"
-            />
+              autoComplete="off" autoCorrect="off" autoCapitalize="words"/>
           </div>
           <div><span style={s.label}>Category</span><select style={s.select} value={newEx.category} onChange={e=>setNewEx(p=>({...p,category:e.target.value}))}>{CATEGORIES.map(c=><option key={c}>{c}</option>)}</select></div>
           <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}>
@@ -800,10 +791,37 @@
         if(modal==="browseAdd"){
           const activeIds=activeTmpl?[...activeTmpl.exercises,...extraExIds].filter(id=>!removedExIds.includes(id)):customExIds;
           const available=allExercises.filter(ex=>!activeIds.includes(ex.id));
+
+          // ── Suggestions: built-in exercises not done in 7+ days and not already in workout
+          const suggested=BUILTIN_EXERCISES.filter(ex=>{
+            if(activeIds.includes(ex.id)) return false;
+            const days=daysSinceExercise(ex.id);
+            return days!==null && days>=7;
+          }).slice(0,6);
+
           return(
             <Modal onClose={()=>setModal(null)}>
               <span style={{...s.label,fontSize:12,marginBottom:16}}>Add Exercise</span>
-              <div style={{maxHeight:"55vh",overflowY:"auto",marginBottom:12}}>
+
+              {/* Suggestions section */}
+              {suggested.length>0&&(
+                <div style={{marginBottom:18}}>
+                  <span style={{...s.label,fontSize:9,color:"var(--gold)",marginBottom:8}}>💡 Not done in 7+ days</span>
+                  <div style={{display:"flex",flexWrap:"wrap",gap:6}}>
+                    {suggested.map(ex=>(
+                      <button key={ex.id} onClick={()=>{
+                        if(activeTmpl) setExtraExIds(p=>[...p,ex.id]);
+                        else setCustomExIds(p=>[...p,ex.id]);
+                        setModal(null);showToast(ex.name+" added!");
+                      }} style={{background:"rgba(200,146,42,0.12)",border:"1px solid rgba(200,146,42,0.4)",borderRadius:6,padding:"7px 11px",color:"var(--gold2)",fontSize:13,cursor:"pointer"}}>
+                        {ex.name}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              <div style={{maxHeight:"50vh",overflowY:"auto",marginBottom:12}}>
                 {CATEGORIES.map(cat=>{
                   const ces=available.filter(e=>e.category===cat);
                   if(!ces.length) return null;
@@ -829,6 +847,7 @@
             </Modal>
           );
         }
+
         if(modal==="createAndAdd") return(
           <ModalStrict onClose={()=>setModal(null)}>
             <span style={{...s.label,fontSize:12,marginBottom:16}}>Create & Add Exercise</span>
@@ -864,18 +883,14 @@
           </Modal>
         );
 
-        // ── LOG PAST WORKOUT MODAL ────────────────────────────
         if(modal==="logPastWorkout") return(
           <ModalStrict onClose={()=>setModal(null)}>
             <span style={{...s.label,fontSize:12,marginBottom:4}}>Log Past Workout</span>
             <p style={{color:"var(--muted)",fontSize:13,marginBottom:16,lineHeight:1.5}}>Enter a previous session to calibrate your weight projections.</p>
-
-            {/* Date field — constrained width */}
             <div style={{marginBottom:16}}>
               <span style={s.label}>Date</span>
               <input style={{...s.input,maxWidth:"100%",boxSizing:"border-box"}} type="date" value={pastDate} onChange={e=>setPastDate(e.target.value)}/>
             </div>
-
             <div style={{maxHeight:"50vh",overflowY:"auto"}}>
               {pastRows.map((row,rowIdx)=>(
                 <div key={rowIdx} style={{...s.card,padding:14,marginBottom:8}}>
@@ -883,13 +898,10 @@
                     <span style={{...s.label,marginBottom:0}}>Exercise {rowIdx+1}</span>
                     {pastRows.length>1&&<button style={{background:"none",border:"none",color:"var(--brick2)",cursor:"pointer",fontSize:18}} onClick={()=>setPastRows(p=>p.filter((_,i)=>i!==rowIdx))}>×</button>}
                   </div>
-
                   <select style={{...s.select,marginBottom:10}} value={row.exId} onChange={e=>setPastRows(p=>p.map((r,i)=>i===rowIdx?{...r,exId:e.target.value}:r))}>
                     <option value="">Select exercise...</option>
                     {CATEGORIES.map(cat=>{const ces=allExercises.filter(e=>e.category===cat);if(!ces.length)return null;return(<optgroup key={cat} label={cat}>{ces.map(ex=><option key={ex.id} value={ex.id}>{ex.name}</option>)}</optgroup>);})}
                   </select>
-
-                  {/* Per-set rows */}
                   <span style={{...s.label,fontSize:9,marginBottom:6}}>Sets</span>
                   {row.sets.map((setItem,setIdx)=>(
                     <div key={setIdx} style={{display:"grid",gridTemplateColumns:"auto 1fr 1fr auto",gap:6,alignItems:"center",marginBottom:6}}>
@@ -912,14 +924,12 @@
               ))}
               <div ref={pastRowsEndRef}/>
             </div>
-
             <button style={{...s.btnOutline,width:"100%",marginBottom:10,marginTop:8,fontSize:11}} onClick={addPastRow}>+ Add Another Exercise</button>
             <button style={s.btn} onClick={savePastWorkout}>Save Past Workout</button>
           </ModalStrict>
         );
 
-        // ── EDIT HISTORY WORKOUT MODAL ────────────────────────
-        if(modal==="editWorkout"&&editingWorkout) {
+        if(modal==="editWorkout"&&editingWorkout){
           const ew=editingWorkout;
           return(
             <ModalStrict onClose={()=>{setModal(null);setEditingWorkout(null);}}>
@@ -931,8 +941,6 @@
                 {ew.exercises.map((ex,ei)=>(
                   <div key={ei} style={{...s.card,padding:12,marginBottom:8}}>
                     <div style={{fontWeight:600,fontSize:14,color:"var(--cream)",marginBottom:10}}>{ex.name}</div>
-
-                    {/* If exercise has per-set data, edit each set */}
                     {(ex.setData&&ex.setData.length>0)?(
                       <div>
                         <span style={{...s.label,fontSize:9,marginBottom:6}}>Sets</span>
@@ -957,7 +965,6 @@
                         ))}
                       </div>
                     ):(
-                      // Fallback: simple weight/reps/sets edit for older records
                       <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:8}}>
                         {[["Weight","weight"],["Reps","reps"],["Sets","sets"]].map(([lbl,key])=>(
                           <div key={key}>
@@ -1000,9 +1007,7 @@
                   <span style={{fontFamily:"'DM Mono',monospace",fontSize:10,color:"var(--muted)"}}>{r.date}</span>
                 </div>
                 {r.features.map((f,i)=>(
-                  <div key={i} style={{fontFamily:"'DM Mono',monospace",fontSize:11,color:"var(--cream2)",padding:"4px 0",borderBottom:"1px solid var(--border)",lineHeight:1.5}}>
-                    · {f}
-                  </div>
+                  <div key={i} style={{fontFamily:"'DM Mono',monospace",fontSize:11,color:"var(--cream2)",padding:"4px 0",borderBottom:"1px solid var(--border)",lineHeight:1.5}}>· {f}</div>
                 ))}
               </div>
             ))}
@@ -1027,9 +1032,7 @@
       if(!authUser) return(
         <div style={{...s.app,display:"flex",alignItems:"center",justifyContent:"center"}}>
           <div style={{position:"relative",zIndex:2,width:"100%",maxWidth:400,padding:"0 28px",textAlign:"center"}}>
-            <div style={{display:"inline-block",border:"2px solid var(--gold)",borderRadius:"50%",width:100,height:100,lineHeight:"96px",fontSize:36,marginBottom:24,color:"var(--gold)",background:"var(--surface)"}}>
-              🏋️
-            </div>
+            <div style={{display:"inline-block",border:"2px solid var(--gold)",borderRadius:"50%",width:100,height:100,lineHeight:"96px",fontSize:36,marginBottom:24,color:"var(--gold)",background:"var(--surface)"}}>🏋️</div>
             <div style={{fontFamily:"'Playfair Display',serif",fontSize:38,fontWeight:900,color:"var(--gold)",letterSpacing:2,marginBottom:4}}>IRONFORM</div>
             <div style={{fontFamily:"'DM Mono',monospace",fontSize:10,letterSpacing:4,color:"var(--muted)",marginBottom:32,textTransform:"uppercase"}}>Personal Strength Journal</div>
             <div style={{width:60,height:1,background:"var(--border2)",margin:"0 auto 32px"}}/>
@@ -1056,9 +1059,7 @@
                 <span style={{...s.tag,background:tmpl.accentDim,border:`1px solid ${tmpl.accentBorder}`,color:tmpl.accent}}>{tmpl.emoji} {tmpl.label}</span>
               </div>
               <BackBtn onClick={()=>{setActiveTmpl(null);setExtraExIds([]);setRemovedExIds([]);setExRepSchemes({});setScreen("home");}}/>
-
               <h2 style={{fontFamily:"'Playfair Display',serif",fontSize:26,color:"var(--cream)",marginBottom:16}}>{tmpl.label}</h2>
-
               <div style={{...s.card,marginBottom:14}}>
                 <span style={s.label}>Global Set & Rep Count</span>
                 <div style={{display:"flex",justifyContent:"space-around",paddingTop:8}}>
@@ -1067,7 +1068,6 @@
                   <Stepper value={previewReps} onChange={setPreviewReps} min={1} label="Reps"/>
                 </div>
               </div>
-
               <span style={s.label}>Exercises ({allIds.length})</span>
               {allIds.map(exId=>{
                 const def=allExercises.find(e=>e.id===exId);
@@ -1076,10 +1076,8 @@
                 const weight=last?safeProgressWeight(last.exercise.weight,goal,Math.max(1,Math.round((Date.now()-new Date(last.workout.date))/86400000/7)),def.unit):def.defaultWeight;
                 const isExtra=extraExIds.includes(exId);
                 const exScheme=exRepSchemes[exId]||"standard";
-
                 return(
                   <div key={exId} style={{...s.card,marginBottom:8,padding:"12px 14px"}}>
-                    {/* Top row: name + remove */}
                     <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:6}}>
                       <div>
                         <div style={{fontWeight:600,fontSize:15,color:"var(--cream)",display:"flex",alignItems:"center",gap:8}}>
@@ -1096,8 +1094,6 @@
                         else setRemovedExIds(p=>[...p,exId]);
                       }} style={{background:"none",border:"none",color:"var(--brick2)",cursor:"pointer",fontSize:20,flexShrink:0}}>×</button>
                     </div>
-
-                    {/* Per-exercise rep scheme selector */}
                     <div style={{display:"flex",gap:4,marginTop:8}}>
                       {[["standard","Standard"],["dropset","Drop Set"],["pyramid","Pyramid"]].map(([key,lbl])=>{
                         const active=exScheme===key;
@@ -1119,7 +1115,6 @@
                   </div>
                 );
               })}
-
               <button style={{...s.btnOutline,width:"100%",marginBottom:10,marginTop:6}} onClick={()=>setModal("browseAdd")}>+ Add Exercise Today</button>
               <button style={s.btn} onClick={()=>launchWorkout(tmpl,extraExIds,removedExIds,previewSets,previewReps,exRepSchemes)}>Begin {tmpl.label}</button>
             </div>
@@ -1136,7 +1131,6 @@
             <BackBtn onClick={()=>{setCustomExIds([]);setCustomGoal("hypertrophy");setScreen("home");}}/>
             <h2 style={{fontFamily:"'Playfair Display',serif",fontSize:26,color:"var(--cream)",marginBottom:6}}>Build Your Workout</h2>
             <p style={{color:"var(--muted)",fontSize:14,marginBottom:18,lineHeight:1.5}}>Pick your exercises, then go.</p>
-
             <div style={{...s.card,marginBottom:14}}>
               <span style={s.label}>Training Goal</span>
               <div style={{display:"flex",gap:8,flexWrap:"wrap",marginTop:4}}>
@@ -1147,7 +1141,6 @@
                 ))}
               </div>
             </div>
-
             {customExIds.length>0&&(
               <div style={{...s.card,marginBottom:14}}>
                 <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:10}}>
@@ -1166,7 +1159,6 @@
                 })}
               </div>
             )}
-
             <div style={s.card}>
               <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:12}}>
                 <span style={s.label}>Browse Exercises</span>
@@ -1206,7 +1198,6 @@
         const isLast=currentExIdx===exercises.length-1;
         const progress=totalSets>0?totalDone/totalSets:0;
         const setRepsArr=activeWorkout.setRepsMap?.[ex.id]||Array(ex.sets).fill(ex.reps);
-
         return(
           <div style={s.app}>
             {Toast}{RestModal}
@@ -1215,8 +1206,6 @@
                 <div style={s.logo}>IRONFORM</div>
                 <button style={s.btnDanger} onClick={cancelWorkout}>Cancel</button>
               </div>
-
-              {/* Progress */}
               <div style={{marginBottom:18}}>
                 <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:6}}>
                   <span style={{...s.label,marginBottom:0}}>{activeWorkout.templateLabel} · {currentExIdx+1} of {exercises.length}</span>
@@ -1233,8 +1222,6 @@
                   })}
                 </div>
               </div>
-
-              {/* Exercise card */}
               <div style={{...s.card,padding:22,marginBottom:12}}>
                 <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:6}}>
                   <div>
@@ -1245,14 +1232,11 @@
                   </div>
                   {allDone&&<div style={{color:"var(--green2)",fontSize:26}}>✓</div>}
                 </div>
-
                 {lastRec&&(
                   <div style={{fontFamily:"'DM Mono',monospace",fontSize:11,color:"var(--muted)",marginBottom:16,background:"var(--surface2)",borderRadius:6,padding:"8px 12px",letterSpacing:0.5}}>
                     Last: {lastRec.exercise.weight}{lastRec.exercise.unit!=="reps"?" "+lastRec.exercise.unit:""} · {new Date(lastRec.workout.date).toLocaleDateString("en-US",{month:"short",day:"numeric",year:"numeric"})}
                   </div>
                 )}
-
-                {/* Overall weight (±0.25) */}
                 <div style={{display:"flex",alignItems:"center",gap:14,marginBottom:16,justifyContent:"center"}}>
                   <div style={{display:"flex",flexDirection:"column",gap:4}}>
                     <button style={s.setBtn} onClick={()=>adjustWeight(ex.id,-1)}>−</button>
@@ -1268,8 +1252,6 @@
                     <button style={{...s.setBtn,fontSize:14,height:32}} onClick={()=>adjustWeight(ex.id,0.25)}>+.25</button>
                   </div>
                 </div>
-
-                {/* Per-set controls */}
                 <span style={{...s.label,marginBottom:10}}>Sets — tap to complete</span>
                 <div style={{display:"flex",flexDirection:"column",gap:8,marginBottom:14}}>
                   {done.map((d,i)=>{
@@ -1299,10 +1281,8 @@
                     );
                   })}
                 </div>
-
                 <input style={{...s.input,fontSize:13,padding:"10px 12px"}} placeholder="Notes..." value={noteFor[ex.id]||""} onChange={e=>setNoteFor(p=>({...p,[ex.id]:e.target.value}))}/>
               </div>
-
               <div style={{display:"grid",gridTemplateColumns:currentExIdx>0?"1fr 1fr":"1fr",gap:10}}>
                 {currentExIdx>0&&(
                   <button style={{...s.btnOutline,width:"100%",textAlign:"center"}} onClick={()=>setCurrentExIdx(i=>i-1)}>← Prev</button>
@@ -1332,7 +1312,6 @@
                 <div style={s.logo}>IRONFORM</div>
                 <span style={s.tag}>{sd.templateLabel}</span>
               </div>
-
               <div style={{...s.cardWarm,textAlign:"center",padding:28,marginBottom:16}}>
                 <div style={{fontSize:36,marginBottom:8}}>🏆</div>
                 <div style={{fontFamily:"'Playfair Display',serif",fontSize:28,color:"var(--gold)",marginBottom:4}}>Session Complete</div>
@@ -1340,11 +1319,7 @@
                   {new Date(sd.date).toLocaleDateString("en-US",{weekday:"long",month:"long",day:"numeric"})}
                 </div>
                 <div style={{display:"flex",justifyContent:"center",gap:24,marginTop:18}}>
-                  {[
-                    {label:"Exercises",value:sd.exercises.length},
-                    {label:"Sets Done",value:sd.exercises.reduce((a,e)=>a+e.completedSets,0)},
-                    {label:"PRs",value:sd.exercises.filter(e=>e.improved).length},
-                  ].map(stat=>(
+                  {[{label:"Exercises",value:sd.exercises.length},{label:"Sets Done",value:sd.exercises.reduce((a,e)=>a+e.completedSets,0)},{label:"PRs",value:sd.exercises.filter(e=>e.improved).length}].map(stat=>(
                     <div key={stat.label} style={{textAlign:"center"}}>
                       <div style={{fontFamily:"'Playfair Display',serif",fontSize:26,color:"var(--cream)",lineHeight:1}}>{stat.value}</div>
                       <div style={{fontFamily:"'DM Mono',monospace",fontSize:9,color:"var(--muted)",letterSpacing:2,marginTop:3,textTransform:"uppercase"}}>{stat.label}</div>
@@ -1352,21 +1327,15 @@
                   ))}
                 </div>
               </div>
-
               {achievedGoals.length>0&&(
                 <div style={{...s.card,background:"rgba(74,124,89,0.12)",border:"1px solid rgba(74,124,89,0.35)",marginBottom:10}}>
                   <span style={{...s.label,color:"var(--green2)"}}>🎯 Goals Achieved This Session</span>
                   {achievedGoals.map((g,i)=>{
                     const def=allExercises.find(e=>e.id===g.exId);
-                    return(
-                      <div key={i} style={{fontFamily:"'DM Mono',monospace",fontSize:12,color:"var(--green2)",padding:"4px 0",borderBottom:"1px solid rgba(74,124,89,0.2)"}}>
-                        ✓ {def?.name||g.exId} — {g.targetWeight} lbs
-                      </div>
-                    );
+                    return(<div key={i} style={{fontFamily:"'DM Mono',monospace",fontSize:12,color:"var(--green2)",padding:"4px 0",borderBottom:"1px solid rgba(74,124,89,0.2)"}}>✓ {def?.name||g.exId} — {g.targetWeight} lbs</div>);
                   })}
                 </div>
               )}
-
               <span style={s.label}>Exercise Breakdown</span>
               {sd.exercises.map(ex=>(
                 <div key={ex.id} style={{...s.card,marginBottom:8,padding:"13px 15px"}}>
@@ -1387,7 +1356,6 @@
                   </div>
                 </div>
               ))}
-
               <button style={s.btn} onClick={()=>setScreen("home")}>Back to Home</button>
               <button style={{...s.btnOutline,width:"100%",marginTop:8,textAlign:"center"}} onClick={()=>setScreen("history")}>View History</button>
             </div>
@@ -1404,10 +1372,8 @@
               <div style={s.logo}>IRONFORM</div>
               <button style={s.btnSm} onClick={()=>setModal("addLiftGoal")}>+ New Goal</button>
             </div>
-
             <h2 style={{fontFamily:"'Playfair Display',serif",fontSize:26,color:"var(--cream)",marginBottom:4}}>Lift Goals</h2>
             <p style={{color:"var(--muted)",fontSize:13,marginBottom:20,fontFamily:"'DM Mono',monospace",letterSpacing:0.5,lineHeight:1.6}}>Set a target weight for any exercise. Click data points on the chart to see exact dates and weights.</p>
-
             {liftGoals.length===0?(
               <div style={{...s.card,textAlign:"center",padding:40}}>
                 <div style={{fontSize:36,marginBottom:12}}>🎯</div>
@@ -1422,7 +1388,6 @@
               const pct=current?Math.min(100,Math.round((current/goal.targetWeight)*100)):0;
               const projDate=history.length>=2?projectGoalDate(history,goal.targetWeight):null;
               const achieved=current&&current>=goal.targetWeight;
-
               return(
                 <div key={goal._id} style={{...s.card,marginBottom:12,padding:18}}>
                   <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:12}}>
@@ -1435,7 +1400,6 @@
                     </div>
                     <button onClick={()=>doDelLiftGoal(goal._id)} style={{background:"none",border:"none",color:"var(--muted)",cursor:"pointer",fontSize:16,lineHeight:1,padding:"0 2px",flexShrink:0}}>×</button>
                   </div>
-
                   <div style={{marginBottom:12}}>
                     <div style={{display:"flex",justifyContent:"space-between",marginBottom:4}}>
                       <span style={{fontFamily:"'DM Mono',monospace",fontSize:9,color:"var(--muted)",letterSpacing:2,textTransform:"uppercase"}}>Progress</span>
@@ -1445,7 +1409,6 @@
                       <div style={{height:"100%",width:`${pct}%`,background:achieved?"var(--green2)":"var(--gold)",borderRadius:3,transition:"width 0.6s ease"}}/>
                     </div>
                   </div>
-
                   {history.length>0?(
                     <div style={{background:"var(--surface2)",borderRadius:8,padding:"12px 8px 6px",marginBottom:10}}>
                       <MiniChart history={history} targetWeight={goal.targetWeight}/>
@@ -1455,18 +1418,13 @@
                       Complete a workout with {def.name} to start tracking
                     </div>
                   )}
-
                   {projDate&&!achieved&&(
                     <div style={{fontFamily:"'DM Mono',monospace",fontSize:11,color:"var(--cream2)",background:"rgba(200,146,42,0.08)",border:"1px solid rgba(200,146,42,0.2)",borderRadius:6,padding:"8px 12px",letterSpacing:0.5}}>
-                      {projDate==="already achieved!"
-                        ?"✓ Already achieved based on your data"
-                        :`Projected: ${projDate.toLocaleDateString("en-US",{month:"long",day:"numeric",year:"numeric"})} (${Math.round((projDate-Date.now())/86400000)} days)`}
+                      {projDate==="already achieved!"?"✓ Already achieved based on your data":`Projected: ${projDate.toLocaleDateString("en-US",{month:"long",day:"numeric",year:"numeric"})} (${Math.round((projDate-Date.now())/86400000)} days)`}
                     </div>
                   )}
                   {!projDate&&history.length>=1&&history.length<2&&(
-                    <div style={{fontFamily:"'DM Mono',monospace",fontSize:10,color:"var(--muted)",letterSpacing:0.5,marginTop:4}}>
-                      Projection available after 2+ sessions with this exercise
-                    </div>
+                    <div style={{fontFamily:"'DM Mono',monospace",fontSize:10,color:"var(--muted)",letterSpacing:0.5,marginTop:4}}>Projection available after 2+ sessions with this exercise</div>
                   )}
                 </div>
               );
@@ -1485,8 +1443,6 @@
               <div style={s.logo}>IRONFORM</div>
               <button style={s.btnSm} onClick={()=>{setPastDate("");setPastRows([{exId:"",sets:[{weight:"",reps:""}]}]);setModal("logPastWorkout");}}>+ Log Past</button>
             </div>
-
-            {/* Tab selector */}
             <div style={{display:"flex",gap:0,marginBottom:16,border:"1px solid var(--border)",borderRadius:8,overflow:"hidden"}}>
               {[["log","Workout Log"],["calendar","Calendar"]].map(([tab,lbl])=>(
                 <button key={tab} onClick={()=>setHistoryTab(tab)} style={{flex:1,padding:"10px",fontFamily:"'DM Mono',monospace",fontSize:11,letterSpacing:2,textTransform:"uppercase",cursor:"pointer",border:"none",background:historyTab===tab?"rgba(200,146,42,0.18)":"var(--surface)",color:historyTab===tab?"var(--gold)":"var(--muted)"}}>
@@ -1503,10 +1459,12 @@
                     workouts={workouts}
                     onSelectDate={setCalSelectedDate}
                     selectedDate={calSelectedDate}
+                    calYear={calYear}
+                    calMonth={calMonth}
+                    setCalYear={setCalYear}
+                    setCalMonth={setCalMonth}
                   />
                 </div>
-
-                {/* Selected date workout detail */}
                 {calSelectedDate&&(()=>{
                   const dayWorkouts=workouts.filter(w=>new Date(w.date).toDateString()===calSelectedDate);
                   if(!dayWorkouts.length) return null;
@@ -1563,7 +1521,6 @@
               const expanded=!!expandedWorkouts[wKey];
               return(
                 <div key={wKey} style={s.card}>
-                  {/* Collapsible header */}
                   <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",cursor:"pointer"}} onClick={()=>setExpandedWorkouts(p=>({...p,[wKey]:!p[wKey]}))}>
                     <div>
                       <div style={{fontWeight:700,fontSize:15,color:"var(--cream)"}}>{new Date(w.date).toLocaleDateString("en-US",{weekday:"short",month:"short",day:"numeric",year:"numeric"})}</div>
@@ -1575,8 +1532,6 @@
                       <span style={{color:"var(--muted)",fontSize:18,lineHeight:1}}>{expanded?"▲":"▼"}</span>
                     </div>
                   </div>
-
-                  {/* Expanded detail */}
                   {expanded&&(
                     <div style={{marginTop:12}}>
                       {w.exercises?.map((ex,ei)=>{
@@ -1585,21 +1540,15 @@
                         const hasSetData=ex.setData&&ex.setData.length>0;
                         return(
                           <div key={ex.id||ei}>
-                            <div
-                              style={{padding:"8px 0",borderBottom:"1px solid var(--border)",cursor:hasNote?"pointer":"default"}}
-                              onClick={()=>hasNote&&setExpandedExNote(p=>({...p,[noteKey]:!p[noteKey]}))}
-                            >
+                            <div style={{padding:"8px 0",borderBottom:"1px solid var(--border)",cursor:hasNote?"pointer":"default"}}
+                              onClick={()=>hasNote&&setExpandedExNote(p=>({...p,[noteKey]:!p[noteKey]}))}>
                               <div style={{display:"flex",justifyContent:"space-between",fontSize:13,marginBottom:hasSetData?4:0}}>
                                 <span style={{color:"var(--cream2)",display:"flex",alignItems:"center",gap:6}}>
                                   {ex.name}
                                   {hasNote&&<span style={{fontSize:11,color:"var(--gold)"}}>💬</span>}
                                 </span>
-                                {/* If no per-set data, show single summary */}
-                                {!hasSetData&&(
-                                  <span style={{fontFamily:"'DM Mono',monospace",fontSize:12,color:"var(--gold2)"}}>{ex.unit==="reps"?`BW × ${ex.reps}`:`${ex.weight}${ex.unit} × ${ex.reps}`}{ex.sets>1?` × ${ex.sets}s`:""}</span>
-                                )}
+                                {!hasSetData&&<span style={{fontFamily:"'DM Mono',monospace",fontSize:12,color:"var(--gold2)"}}>{ex.unit==="reps"?`BW × ${ex.reps}`:`${ex.weight}${ex.unit} × ${ex.reps}`}{ex.sets>1?` × ${ex.sets}s`:""}</span>}
                               </div>
-                              {/* Per-set breakdown if available */}
                               {hasSetData&&(
                                 <div style={{display:"flex",gap:5,flexWrap:"wrap",marginTop:2}}>
                                   {ex.setData.map((sd,si)=>(
@@ -1610,7 +1559,6 @@
                                 </div>
                               )}
                             </div>
-                            {/* Note reveal */}
                             {expandedExNote[noteKey]&&hasNote&&(
                               <div style={{padding:"6px 10px",background:"rgba(200,146,42,0.06)",borderRadius:4,margin:"4px 0",fontStyle:"italic",fontSize:12,color:"var(--cream2)"}}>"{ex.note}"</div>
                             )}
@@ -1636,7 +1584,6 @@
           {renderModal()}{Toast}
           <div style={{...s.content,...s.contentPt}}>
             <div style={s.header}><div style={s.logo}>IRONFORM</div></div>
-
             <div style={{...s.cardWarm,marginBottom:14}}>
               <div style={{display:"flex",alignItems:"center",gap:14}}>
                 {authUser.photoURL&&<img src={authUser.photoURL} alt="" style={{width:52,height:52,borderRadius:"50%",border:"2px solid var(--gold)",opacity:0.9}}/>}
@@ -1647,7 +1594,6 @@
                 </div>
               </div>
             </div>
-
             <div style={{...s.card,marginBottom:14}}>
               <span style={s.label}>Default Training Goal</span>
               <div style={{display:"flex",flexDirection:"column",gap:6,marginTop:6}}>
@@ -1660,7 +1606,6 @@
                 ))}
               </div>
             </div>
-
             <div style={{...s.card,marginBottom:14}}>
               <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:12}}>
                 <span style={s.label}>Custom Exercises ({customExs.length})</span>
@@ -1672,7 +1617,6 @@
                 </div>
               ))}
             </div>
-
             <button style={{...s.btnDanger,width:"100%",marginTop:6}} onClick={handleSignOut}>Sign Out</button>
           </div>
           <NavBar active="profile"/>
@@ -1688,11 +1632,9 @@
             accent:tmpl.accent,accentDim:tmpl.accentDim,accentBorder:tmpl.accentBorder,
             onClick:()=>{setActiveTmpl(tmpl);setExtraExIds([]);setRemovedExIds([]);setExRepSchemes({});const sr=GOAL_SETS[profile?.goal||"hypertrophy"];setPreviewSets(sr.sets);setPreviewReps(sr.reps);setScreen("preset_preview");}};
         }),
-        {id:"custom",emoji:"⚡",label:"Custom",sub:"Build your own",
-          accent:"#4a6c8c",accentDim:"rgba(74,108,140,0.15)",accentBorder:"rgba(74,108,140,0.45)",
+        {id:"custom",emoji:"⚡",label:"Custom",sub:"Build your own",accent:"#4a6c8c",accentDim:"rgba(74,108,140,0.15)",accentBorder:"rgba(74,108,140,0.45)",
           onClick:()=>{setCustomExIds([]);setCustomGoal("hypertrophy");setScreen("custom_builder");}},
       ];
-
       const lastWorkout=workouts[workouts.length-1];
       const daysSinceLast=lastWorkout?Math.floor((Date.now()-new Date(lastWorkout.date))/86400000):null;
       const streak=(()=>{if(!workouts.length)return 0;let s=0;const dates=new Set(workouts.map(w=>new Date(w.date).toDateString()));const d=new Date();d.setHours(0,0,0,0);while(dates.has(d.toDateString())){s++;d.setDate(d.getDate()-1);}return s;})();
@@ -1705,7 +1647,6 @@
               <div style={s.logo}>IRONFORM</div>
               {authUser.photoURL&&<img src={authUser.photoURL} alt="" style={{width:30,height:30,borderRadius:"50%",border:"1px solid var(--border2)",cursor:"pointer",opacity:0.85}} onClick={()=>setScreen("profile")}/>}
             </div>
-
             <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:8,marginBottom:20}}>
               {[{label:"Sessions",value:workouts.length},{label:"Days Rest",value:daysSinceLast===null?"—":daysSinceLast},{label:"Streak",value:streak}].map(stat=>(
                 <div key={stat.label} style={{...s.card,padding:14,textAlign:"center",marginBottom:0}}>
@@ -1714,13 +1655,11 @@
                 </div>
               ))}
             </div>
-
             <div style={{display:"flex",alignItems:"center",gap:12,marginBottom:14}}>
               <div style={{flex:1,height:1,background:"var(--border)"}}/>
               <span style={{fontFamily:"'DM Mono',monospace",fontSize:9,letterSpacing:3,color:"var(--muted)",textTransform:"uppercase"}}>Begin Session</span>
               <div style={{flex:1,height:1,background:"var(--border)"}}/>
             </div>
-
             <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginBottom:16}}>
               {tiles.map(tile=>(
                 <button key={tile.id} onClick={tile.onClick} style={{background:tile.accentDim,border:`1px solid ${tile.accentBorder}`,borderRadius:12,padding:"22px 14px",cursor:"pointer",textAlign:"center",display:"flex",flexDirection:"column",alignItems:"center",gap:7,width:"100%"}}>
@@ -1730,13 +1669,11 @@
                 </button>
               ))}
             </div>
-
             <div style={{display:"flex",alignItems:"center",gap:12,marginBottom:14}}>
               <div style={{flex:1,height:1,background:"var(--border)"}}/>
               <span style={{fontFamily:"'DM Mono',monospace",fontSize:9,letterSpacing:3,color:"var(--muted)",textTransform:"uppercase"}}>Quick Actions</span>
               <div style={{flex:1,height:1,background:"var(--border)"}}/>
             </div>
-
             <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,marginBottom:14}}>
               <button style={{...s.card,marginBottom:0,cursor:"pointer",textAlign:"center",padding:14,border:"1px solid var(--border)",background:"var(--surface)"}}
                 onClick={()=>{setPastDate("");setPastRows([{exId:"",sets:[{weight:"",reps:""}]}]);setModal("logPastWorkout");}}>
@@ -1749,7 +1686,6 @@
                 <div style={{fontFamily:"'DM Mono',monospace",fontSize:9,color:"var(--muted)",letterSpacing:2,textTransform:"uppercase"}}>New Lift</div>
               </button>
             </div>
-
             {lastWorkout&&(
               <div style={s.card}>
                 <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:10}}>
@@ -1764,7 +1700,6 @@
                 ))}
               </div>
             )}
-
             <div style={{textAlign:"center",marginTop:16}}>
               <button onClick={()=>setModal("versionHistory")} style={{background:"none",border:"none",cursor:"pointer",fontFamily:"'DM Mono',monospace",fontSize:9,letterSpacing:2,color:"var(--muted)",textTransform:"uppercase",opacity:0.6}}>
                 v{APP_VERSION}
