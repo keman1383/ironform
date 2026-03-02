@@ -77,8 +77,27 @@
     const { useState, useEffect, useRef, useCallback } = React;
 
     // ── VERSION INFO ──────────────────────────────────────────────
-    const APP_VERSION = "2.2.0";
+    const APP_VERSION = "2.3.0";
     const RELEASE_HISTORY = [
+      {
+        version: "2.3.0",
+        date: "2026-03-02",
+        features: [
+          "Celebration screen with confetti animation + stats summary after workout",
+          "1-Rep Max storage on Profile (bench, squat, lat pulldown) — overrides calculated 1RM",
+          "1RM estimate displayed on Goals page for any exercise with a goal (Epley formula)",
+          "Equipment type per exercise: barbell, dumbbell, cable, assisted, or bodyweight",
+          "Barbell exercises show per-side plate weight during workout",
+          "Default increments by equipment: barbell 2.5lb, dumbbell 5lb, cable 5lb",
+          "Big weight buttons respect equipment type; fine-tune .25 buttons always present",
+          "Rest timer stays up after countdown ends — shows 'Do Your Next Lift' prompt",
+          "Rest timer shows 'Up Next' preview (next set or next exercise) during countdown",
+          "Historical data shown on each exercise during workout: last session + personal best",
+          "Global weight adjuster does not overwrite already-completed sets",
+          "Assisted exercises reverse weight progression (decrease instead of increase)",
+          "Last set of entire workout skips timer and goes straight to celebration screen",
+        ],
+      },
       {
         version: "2.2.0",
         date: "2026-03-01",
@@ -162,46 +181,52 @@
     const fbUpdateWorkout = async (uid,id,w) => db.collection("users").doc(uid).collection("workouts").doc(id).set(w,{merge:true});
     const fbGetCustomExs  = async (uid) => { const s=await db.collection("users").doc(uid).collection("customExercises").get(); return s.docs.map(d=>({...d.data(),_fid:d.id})); };
     const fbAddCustomEx   = async (uid,ex) => { const r=await db.collection("users").doc(uid).collection("customExercises").add(ex); return r.id; };
+    const fbUpdateCustomEx = async (uid,fid,data) => db.collection("users").doc(uid).collection("customExercises").doc(fid).set(data,{merge:true});
     const fbGetLiftGoals  = async (uid) => { const s=await db.collection("users").doc(uid).collection("liftGoals").get(); return s.docs.map(d=>({...d.data(),_id:d.id})); };
     const fbAddLiftGoal   = async (uid,g) => { const r=await db.collection("users").doc(uid).collection("liftGoals").add(g); return r.id; };
     const fbDelLiftGoal   = async (uid,id) => db.collection("users").doc(uid).collection("liftGoals").doc(id).delete();
+    const fbGet1RMs       = async (uid) => { const d=await db.collection("users").doc(uid).collection("oneRepMaxes").get(); return d.docs.map(x=>({...x.data(),_id:x.id})); };
+    const fbSet1RM        = async (uid,exId,weight) => db.collection("users").doc(uid).collection("oneRepMaxes").doc(exId).set({exId,weight,updatedAt:new Date().toISOString()},{merge:true});
+    const fbDel1RM        = async (uid,exId) => db.collection("users").doc(uid).collection("oneRepMaxes").doc(exId).delete();
 
     // ── DATA ──────────────────────────────────────────────────────
+    // equipmentType: "barbell" | "dumbbell" | "cable" | "assisted" | "machine" | "bodyweight"
+    // barbellWeight: weight of the bar (default 45 for olympic bar)
     const BUILTIN_EXERCISES = [
-      {id:"bench",            name:"Bench Press",                      category:"Chest",     unit:"lbs", defaultWeight:115,    increment:5},
-      {id:"decline_press",    name:"Decline Press",                    category:"Chest",     unit:"lbs", defaultWeight:65,     increment:5},
-      {id:"incline_db_press", name:"Incline Dumbbell Press",           category:"Chest",     unit:"lbs", defaultWeight:30,     increment:2.5},
-      {id:"chest_fly",        name:"Chest Fly Machine",                category:"Chest",     unit:"lbs", defaultWeight:55,     increment:5},
-      {id:"cable_fly",        name:"Cable Fly",                        category:"Chest",     unit:"lbs", defaultWeight:22.5,   increment:2.5},
-      {id:"assisted_dip",     name:"Assisted Dip",                     category:"Chest",     unit:"lbs", defaultWeight:118.75, increment:2.5},
-      {id:"press_machine",    name:"Press Machine",                    category:"Chest",     unit:"lbs", defaultWeight:20,     increment:5},
-      {id:"lat_pulldown",     name:"Lat Pull Down",                    category:"Back",      unit:"lbs", defaultWeight:105,    increment:5},
-      {id:"row",              name:"Row",                              category:"Back",      unit:"lbs", defaultWeight:85,     increment:5},
-      {id:"seated_cable_row", name:"Seated Cable Row",                 category:"Back",      unit:"lbs", defaultWeight:85,     increment:5},
-      {id:"single_arm_row",   name:"Single Arm Cable Row",             category:"Back",      unit:"lbs", defaultWeight:45,     increment:2.5},
-      {id:"high_row",         name:"High Row Machine",                 category:"Back",      unit:"lbs", defaultWeight:60,     increment:5},
-      {id:"rdl",              name:"Romanian Deadlifts",               category:"Back",      unit:"lbs", defaultWeight:95,     increment:5},
-      {id:"face_pull",        name:"Face Pulls",                       category:"Back",      unit:"lbs", defaultWeight:22.5,   increment:2.5},
-      {id:"squat",            name:"Squat",                            category:"Legs",      unit:"lbs", defaultWeight:115,    increment:5},
-      {id:"leg_press",        name:"Leg Press",                        category:"Legs",      unit:"lbs", defaultWeight:220,    increment:10},
-      {id:"leg_curl",         name:"Leg Curl",                         category:"Legs",      unit:"lbs", defaultWeight:105,    increment:5},
-      {id:"calf_raise",       name:"Calf Raise",                       category:"Legs",      unit:"lbs", defaultWeight:50,     increment:5},
-      {id:"hip_adduction",    name:"Hip Adduction Machine",            category:"Legs",      unit:"lbs", defaultWeight:130,    increment:5},
-      {id:"glute_drive",      name:"Glute Drive",                      category:"Legs",      unit:"lbs", defaultWeight:95,     increment:5},
-      {id:"oh_db_press",      name:"Overhead Dumbbell Shoulder Press", category:"Shoulders", unit:"lbs", defaultWeight:10,     increment:2.5},
-      {id:"lateral_raise",    name:"Dumbbell Lateral Raises",          category:"Shoulders", unit:"lbs", defaultWeight:10,     increment:2.5},
-      {id:"shrugs",           name:"Shoulder Shrugs",                  category:"Shoulders", unit:"lbs", defaultWeight:17.5,   increment:2.5},
-      {id:"cable_curl",       name:"Cable Curl",                       category:"Arms",      unit:"lbs", defaultWeight:22.5,   increment:2.5},
-      {id:"one_arm_curl",     name:"One Arm Cable Curl",               category:"Arms",      unit:"lbs", defaultWeight:32.5,   increment:2.5},
-      {id:"hammer_curl",      name:"Hammer Curl",                      category:"Arms",      unit:"lbs", defaultWeight:12.5,   increment:2.5},
-      {id:"rope_hammer_curl", name:"Rope Hammer Curl",                 category:"Arms",      unit:"lbs", defaultWeight:22.5,   increment:2.5},
-      {id:"db_bicep_curl",    name:"Seated Dumbbell Bicep Curls",      category:"Arms",      unit:"lbs", defaultWeight:15,     increment:2.5},
-      {id:"preacher_curl",    name:"Preacher Curl Machine",            category:"Arms",      unit:"lbs", defaultWeight:10,     increment:2.5},
-      {id:"tricep_pushdown",  name:"Tricep Push Down",                 category:"Arms",      unit:"lbs", defaultWeight:32.5,   increment:2.5},
-      {id:"tricep_rope",      name:"Tricep Rope Push Down",            category:"Arms",      unit:"lbs", defaultWeight:27.5,   increment:2.5},
-      {id:"one_arm_tricep",   name:"One Arm Cable Tricep",             category:"Arms",      unit:"lbs", defaultWeight:12.5,   increment:2.5},
-      {id:"cable_ab_twist",   name:"Cable Ab Twist",                   category:"Core",      unit:"lbs", defaultWeight:12.5,   increment:2.5},
-      {id:"hanging_leg_lift", name:"Hanging Leg Lifts",                category:"Core",      unit:"reps",defaultWeight:0,      increment:1},
+      {id:"bench",            name:"Bench Press",                      category:"Chest",     unit:"lbs", defaultWeight:115,    increment:2.5, equipmentType:"barbell",   barbellWeight:45},
+      {id:"decline_press",    name:"Decline Press",                    category:"Chest",     unit:"lbs", defaultWeight:65,     increment:2.5, equipmentType:"barbell",   barbellWeight:45},
+      {id:"incline_db_press", name:"Incline Dumbbell Press",           category:"Chest",     unit:"lbs", defaultWeight:30,     increment:5,   equipmentType:"dumbbell"},
+      {id:"chest_fly",        name:"Chest Fly Machine",                category:"Chest",     unit:"lbs", defaultWeight:55,     increment:5,   equipmentType:"machine"},
+      {id:"cable_fly",        name:"Cable Fly",                        category:"Chest",     unit:"lbs", defaultWeight:22.5,   increment:5,   equipmentType:"cable"},
+      {id:"assisted_dip",     name:"Assisted Dip",                     category:"Chest",     unit:"lbs", defaultWeight:118.75, increment:2.5, equipmentType:"assisted"},
+      {id:"press_machine",    name:"Press Machine",                    category:"Chest",     unit:"lbs", defaultWeight:20,     increment:5,   equipmentType:"machine"},
+      {id:"lat_pulldown",     name:"Lat Pull Down",                    category:"Back",      unit:"lbs", defaultWeight:105,    increment:5,   equipmentType:"cable"},
+      {id:"row",              name:"Row",                              category:"Back",      unit:"lbs", defaultWeight:85,     increment:2.5, equipmentType:"barbell",   barbellWeight:45},
+      {id:"seated_cable_row", name:"Seated Cable Row",                 category:"Back",      unit:"lbs", defaultWeight:85,     increment:5,   equipmentType:"cable"},
+      {id:"single_arm_row",   name:"Single Arm Cable Row",             category:"Back",      unit:"lbs", defaultWeight:45,     increment:5,   equipmentType:"cable"},
+      {id:"high_row",         name:"High Row Machine",                 category:"Back",      unit:"lbs", defaultWeight:60,     increment:5,   equipmentType:"machine"},
+      {id:"rdl",              name:"Romanian Deadlifts",               category:"Back",      unit:"lbs", defaultWeight:95,     increment:2.5, equipmentType:"barbell",   barbellWeight:45},
+      {id:"face_pull",        name:"Face Pulls",                       category:"Back",      unit:"lbs", defaultWeight:22.5,   increment:5,   equipmentType:"cable"},
+      {id:"squat",            name:"Squat",                            category:"Legs",      unit:"lbs", defaultWeight:115,    increment:2.5, equipmentType:"barbell",   barbellWeight:45},
+      {id:"leg_press",        name:"Leg Press",                        category:"Legs",      unit:"lbs", defaultWeight:220,    increment:10,  equipmentType:"machine"},
+      {id:"leg_curl",         name:"Leg Curl",                         category:"Legs",      unit:"lbs", defaultWeight:105,    increment:5,   equipmentType:"machine"},
+      {id:"calf_raise",       name:"Calf Raise",                       category:"Legs",      unit:"lbs", defaultWeight:50,     increment:5,   equipmentType:"machine"},
+      {id:"hip_adduction",    name:"Hip Adduction Machine",            category:"Legs",      unit:"lbs", defaultWeight:130,    increment:5,   equipmentType:"machine"},
+      {id:"glute_drive",      name:"Glute Drive",                      category:"Legs",      unit:"lbs", defaultWeight:95,     increment:2.5, equipmentType:"barbell",   barbellWeight:45},
+      {id:"oh_db_press",      name:"Overhead Dumbbell Shoulder Press", category:"Shoulders", unit:"lbs", defaultWeight:10,     increment:5,   equipmentType:"dumbbell"},
+      {id:"lateral_raise",    name:"Dumbbell Lateral Raises",          category:"Shoulders", unit:"lbs", defaultWeight:10,     increment:5,   equipmentType:"dumbbell"},
+      {id:"shrugs",           name:"Shoulder Shrugs",                  category:"Shoulders", unit:"lbs", defaultWeight:17.5,   increment:5,   equipmentType:"dumbbell"},
+      {id:"cable_curl",       name:"Cable Curl",                       category:"Arms",      unit:"lbs", defaultWeight:22.5,   increment:5,   equipmentType:"cable"},
+      {id:"one_arm_curl",     name:"One Arm Cable Curl",               category:"Arms",      unit:"lbs", defaultWeight:32.5,   increment:5,   equipmentType:"cable"},
+      {id:"hammer_curl",      name:"Hammer Curl",                      category:"Arms",      unit:"lbs", defaultWeight:12.5,   increment:5,   equipmentType:"dumbbell"},
+      {id:"rope_hammer_curl", name:"Rope Hammer Curl",                 category:"Arms",      unit:"lbs", defaultWeight:22.5,   increment:5,   equipmentType:"cable"},
+      {id:"db_bicep_curl",    name:"Seated Dumbbell Bicep Curls",      category:"Arms",      unit:"lbs", defaultWeight:15,     increment:5,   equipmentType:"dumbbell"},
+      {id:"preacher_curl",    name:"Preacher Curl Machine",            category:"Arms",      unit:"lbs", defaultWeight:10,     increment:2.5, equipmentType:"machine"},
+      {id:"tricep_pushdown",  name:"Tricep Push Down",                 category:"Arms",      unit:"lbs", defaultWeight:32.5,   increment:5,   equipmentType:"cable"},
+      {id:"tricep_rope",      name:"Tricep Rope Push Down",            category:"Arms",      unit:"lbs", defaultWeight:27.5,   increment:5,   equipmentType:"cable"},
+      {id:"one_arm_tricep",   name:"One Arm Cable Tricep",             category:"Arms",      unit:"lbs", defaultWeight:12.5,   increment:5,   equipmentType:"cable"},
+      {id:"cable_ab_twist",   name:"Cable Ab Twist",                   category:"Core",      unit:"lbs", defaultWeight:12.5,   increment:5,   equipmentType:"cable"},
+      {id:"hanging_leg_lift", name:"Hanging Leg Lifts",                category:"Core",      unit:"reps",defaultWeight:0,      increment:1,   equipmentType:"bodyweight"},
     ];
 
     const CATEGORIES = ["Chest","Back","Legs","Shoulders","Arms","Core","Cardio","Other"];
@@ -257,7 +282,95 @@
       return targetDate;
     }
 
-    // ── SHARED COMPONENTS ─────────────────────────────────────────
+    // ── 1RM HELPERS ───────────────────────────────────────────────
+    // Epley formula: weight * (1 + reps/30), using most recent set with 6+ reps
+    function calcEpley1RM(workoutsArr, exId) {
+      for(let i=workoutsArr.length-1;i>=0;i--) {
+        const ex=workoutsArr[i].exercises?.find(e=>e.id===exId);
+        if(!ex) continue;
+        // Check setData first
+        if(ex.setData&&ex.setData.length>0) {
+          const valid=ex.setData.filter(s=>s.reps>=6&&s.weight>0);
+          if(valid.length>0) {
+            const best=valid.reduce((a,b)=>b.weight>a.weight?b:a);
+            return Math.round(best.weight*(1+best.reps/30)*10)/10;
+          }
+        } else if(ex.reps>=6&&ex.weight>0) {
+          return Math.round(ex.weight*(1+ex.reps/30)*10)/10;
+        }
+      }
+      return null;
+    }
+
+    // Returns effective 1RM: stored if within 15 days, else calculated
+    function getEffective1RM(oneRepMaxes, workoutsArr, exId) {
+      const stored=oneRepMaxes.find(r=>r.exId===exId);
+      if(stored) {
+        const daysSince=(Date.now()-new Date(stored.updatedAt))/86400000;
+        if(daysSince<=15) return {value:stored.weight,source:"stored"};
+      }
+      const calc=calcEpley1RM(workoutsArr, exId);
+      if(calc) return {value:calc,source:"calculated"};
+      return null;
+    }
+
+    // Get big increment for equipment type
+    function getBigIncrement(ex) {
+      const eq=ex.equipmentType||"machine";
+      if(eq==="barbell") return 2.5;
+      if(eq==="dumbbell") return 5;
+      if(eq==="cable") return 5;
+      if(eq==="assisted") return 2.5;
+      return ex.increment||5;
+    }
+
+
+    // Confetti component
+    function Confetti() {
+      const canvasRef=useRef(null);
+      useEffect(()=>{
+        const canvas=canvasRef.current;
+        if(!canvas) return;
+        const ctx=canvas.getContext("2d");
+        canvas.width=window.innerWidth;
+        canvas.height=window.innerHeight;
+        const colors=["#c8922a","#e8b84b","#f0e6cc","#4a7c59","#6aa87a","#4a6c8c","#6a90b8","#c44b2b"];
+        const particles=Array.from({length:120},()=>({
+          x:Math.random()*canvas.width,
+          y:-20-Math.random()*100,
+          w:8+Math.random()*8,
+          h:4+Math.random()*6,
+          color:colors[Math.floor(Math.random()*colors.length)],
+          rotation:Math.random()*360,
+          rotSpeed:(Math.random()-0.5)*8,
+          vx:(Math.random()-0.5)*4,
+          vy:2+Math.random()*4,
+          alpha:1,
+        }));
+        let raf;
+        const draw=()=>{
+          ctx.clearRect(0,0,canvas.width,canvas.height);
+          let alive=false;
+          particles.forEach(p=>{
+            p.x+=p.vx; p.y+=p.vy; p.rotation+=p.rotSpeed;
+            if(p.y>canvas.height*0.7) p.alpha=Math.max(0,p.alpha-0.02);
+            if(p.alpha>0) alive=true;
+            ctx.save();
+            ctx.globalAlpha=p.alpha;
+            ctx.translate(p.x,p.y);
+            ctx.rotate(p.rotation*Math.PI/180);
+            ctx.fillStyle=p.color;
+            ctx.fillRect(-p.w/2,-p.h/2,p.w,p.h);
+            ctx.restore();
+          });
+          if(alive) raf=requestAnimationFrame(draw);
+        };
+        draw();
+        return()=>cancelAnimationFrame(raf);
+      },[]);
+      return <canvas ref={canvasRef} style={{position:"fixed",inset:0,pointerEvents:"none",zIndex:998}}/>;
+    }
+
     function ModalStrict({children, onClose}) {
       return (
         <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.8)",zIndex:500,display:"flex",alignItems:"center",justifyContent:"center",padding:"20px"}}>
@@ -407,6 +520,7 @@
       const [workouts,      setWorkouts]      = useState([]);
       const [customExs,     setCustomExs]     = useState([]);
       const [liftGoals,     setLiftGoals]     = useState([]);
+      const [oneRepMaxes,   setOneRepMaxes]   = useState([]);
       const [dataLoading,   setDataLoading]   = useState(false);
 
       // Workout state
@@ -433,8 +547,10 @@
 
       // Modal & forms
       const [modal,         setModal]         = useState(null);
-      const [newEx,         setNewEx]         = useState({name:"",category:"Chest",unit:"lbs",defaultWeight:45,increment:5});
+      const [newEx,         setNewEx]         = useState({name:"",category:"Chest",unit:"lbs",defaultWeight:45,increment:5,equipmentType:"machine",barbellWeight:45});
       const [newLiftGoal,   setNewLiftGoal]   = useState({exId:"",targetWeight:""});
+      const [editing1RMs,   setEditing1RMs]   = useState(false);
+      const [draft1RMs,     setDraft1RMs]     = useState({});
       const [pastDate,      setPastDate]      = useState("");
       const [pastRows,      setPastRows]      = useState([{exId:"",sets:[{weight:"",reps:""}]}]);
       const [signInErr,     setSignInErr]     = useState(null);
@@ -467,9 +583,9 @@
       const loadData = async (uid) => {
         setDataLoading(true);
         try {
-          const [prof,wkts,cexs,lgs]=await Promise.all([fbGetProfile(uid),fbGetWorkouts(uid),fbGetCustomExs(uid),fbGetLiftGoals(uid)]);
+          const [prof,wkts,cexs,lgs,orms]=await Promise.all([fbGetProfile(uid),fbGetWorkouts(uid),fbGetCustomExs(uid),fbGetLiftGoals(uid),fbGet1RMs(uid)]);
           if(prof) setProfileS(prof);
-          setWorkouts(wkts); setCustomExs(cexs); setLiftGoals(lgs);
+          setWorkouts(wkts); setCustomExs(cexs); setLiftGoals(lgs); setOneRepMaxes(orms||[]);
         } catch(e){console.error(e);}
         setDataLoading(false);
       };
@@ -491,7 +607,7 @@
         }
       };
 
-      const handleSignOut = async () => { await auth.signOut(); setProfileS(null);setWorkouts([]);setCustomExs([]);setLiftGoals([]);setScreen("home"); };
+      const handleSignOut = async () => { await auth.signOut(); setProfileS(null);setWorkouts([]);setCustomExs([]);setLiftGoals([]);setOneRepMaxes([]);setScreen("home"); };
 
       const showToast=(msg)=>{setToast(msg);clearTimeout(toastTimer.current);toastTimer.current=setTimeout(()=>setToast(null),3000);};
 
@@ -499,8 +615,20 @@
       const addWorkoutRecord = async(w)=>{if(authUser){const id=await fbAddWorkout(authUser.uid,w);w={...w,_id:id};}setWorkouts(prev=>[...prev,w].sort((a,b)=>new Date(a.date)-new Date(b.date)));};
       const updateWorkoutRecord = async(w)=>{if(authUser&&w._id)await fbUpdateWorkout(authUser.uid,w._id,w);setWorkouts(prev=>prev.map(x=>x._id===w._id?w:x));};
       const doAddCustomEx = async(ex)=>{if(authUser){const fid=await fbAddCustomEx(authUser.uid,ex);ex={...ex,_fid:fid};}setCustomExs(prev=>[...prev,ex]);return ex;};
+      const doUpdateCustomEx = async(fid,data)=>{if(authUser&&fid)await fbUpdateCustomEx(authUser.uid,fid,data);setCustomExs(prev=>prev.map(e=>e._fid===fid?{...e,...data}:e));};
       const doAddLiftGoal = async(g)=>{if(authUser){const id=await fbAddLiftGoal(authUser.uid,g);g={...g,_id:id};}setLiftGoals(prev=>[...prev,g]);};
       const doDelLiftGoal = async(id)=>{if(authUser)await fbDelLiftGoal(authUser.uid,id);setLiftGoals(prev=>prev.filter(g=>g._id!==id));};
+      const doSave1RM = async(exId,weight)=>{
+        if(authUser) await fbSet1RM(authUser.uid,exId,weight);
+        setOneRepMaxes(prev=>{
+          const filtered=prev.filter(r=>r.exId!==exId);
+          return [...filtered,{exId,weight,updatedAt:new Date().toISOString()}];
+        });
+      };
+      const doDel1RM = async(exId)=>{
+        if(authUser) await fbDel1RM(authUser.uid,exId);
+        setOneRepMaxes(prev=>prev.filter(r=>r.exId!==exId));
+      };
 
       // ── WORKOUT LOGIC ────────────────────────────────────────
       const getLastForExercise=(exId)=>{
@@ -528,9 +656,20 @@
           if(last){
             const days=(Date.now()-new Date(last.workout.date))/86400000;
             const weeks=Math.max(1,Math.round(days/7));
-            weight=safeProgressWeight(last.exercise.weight,goal,weeks,def.unit);
+            if(def.equipmentType==="assisted"){
+              // Assisted: decreasing weight = more assistance = easier. Progress = decrease weight.
+              const progressed=safeProgressWeight(last.exercise.weight,goal,weeks,def.unit);
+              // For assisted, lower weight = harder (less assistance). So we INCREASE weight (more assistance) when going down.
+              // Actually user wants: "reverse next weight calc to decrease weight rather than add weight"
+              // Meaning: normally we'd suggest increasing weight. For assisted, suggest decreasing instead.
+              const delta=progressed-last.exercise.weight;
+              weight=Math.max(0,last.exercise.weight-Math.abs(delta));
+            } else {
+              weight=safeProgressWeight(last.exercise.weight,goal,weeks,def.unit);
+            }
           }
-          return{id:exId,name:def.name,category:def.category,weight,unit:def.unit,sets,reps,increment:def.increment};
+          const bigInc=getBigIncrement(def);
+          return{id:exId,name:def.name,category:def.category,weight,unit:def.unit,sets,reps,increment:def.increment,bigIncrement:bigInc,equipmentType:def.equipmentType||"machine",barbellWeight:def.barbellWeight||null};
         }).filter(Boolean);
       };
 
@@ -567,7 +706,8 @@
       };
 
       // ── FINISH WORKOUT — saves per-set data to each exercise ──
-      const finishWorkout=async()=>{
+      const finishWorkoutWithState=async(completedSetsState)=>{
+        const cs=completedSetsState||completedSets;
         const exercisesWithSetData=activeWorkout.exercises.map(ex=>{
           const setRepsArr=activeWorkout.setRepsMap?.[ex.id]||Array(ex.sets).fill(ex.reps);
           const setData=Array.from({length:ex.sets},(_,i)=>{
@@ -587,7 +727,7 @@
           templateLabel:w.templateLabel,
           date:w.date,
           exercises:exercisesWithSetData.map(ex=>{
-            const doneSets=Array.from({length:ex.sets},(_,i)=>!!completedSets[`${ex.id}_${i}`]);
+            const doneSets=Array.from({length:ex.sets},(_,i)=>!!cs[`${ex.id}_${i}`]);
             const completed=doneSets.filter(Boolean).length;
             const last=getLastForExercise(ex.id);
             const improved=last&&ex.weight>last.exercise.weight;
@@ -601,6 +741,8 @@
         setActiveWorkout(null);setActiveTmpl(null);setExtraExIds([]);setRemovedExIds([]);setExRepSchemes({});
         setScreen("summary");
       };
+
+      const finishWorkout=async()=>finishWorkoutWithState(completedSets);
 
       const cancelWorkout=()=>{
         clearInterval(restIntervalRef.current);
@@ -616,7 +758,7 @@
         restIntervalRef.current=setInterval(()=>{
           setRestTimer(prev=>{
             if(prev===null){clearInterval(restIntervalRef.current);return null;}
-            if(prev<=1){clearInterval(restIntervalRef.current);return null;}
+            if(prev<=1){clearInterval(restIntervalRef.current);return 0;} // stay at 0, don't null
             return prev-1;
           });
         },1000);
@@ -626,8 +768,23 @@
         setCompletedSets(p=>{
           const key=`${exId}_${i}`;
           const wasCompleted=!!p[key];
-          if(!wasCompleted) startRestTimer();
-          return{...p,[key]:!wasCompleted};
+          const newState={...p,[key]:!wasCompleted};
+          if(!wasCompleted){
+            // Check if this is the very last set of the entire workout
+            const allSetsAfterThis=activeWorkout.exercises.flatMap(ex=>
+              Array.from({length:ex.sets},(_,si)=>({exId:ex.id,setIdx:si,key:`${ex.id}_${si}`}))
+            );
+            const remainingIncludingThis=allSetsAfterThis.filter(s=>!newState[s.key]);
+            if(remainingIncludingThis.length===0){
+              // Last set — skip timer, go to finish
+              clearInterval(restIntervalRef.current);
+              setRestTimer(null);
+              setTimeout(()=>finishWorkoutWithState(newState),100);
+            } else {
+              startRestTimer();
+            }
+          }
+          return newState;
         });
       };
 
@@ -639,6 +796,24 @@
           const ex=activeWorkout.exercises.find(e=>e.id===exId);
           const current=p[key]?.weight ?? ex.weight;
           return {...p,[key]:{...p[key],weight:Math.max(0,+(current+delta).toFixed(2))}};
+        });
+      };
+
+      // Global weight adjuster — only affect sets not yet completed
+      const adjustWeightGlobal=(exId,delta)=>{
+        setActiveWorkout(p=>({...p,exercises:p.exercises.map(e=>e.id===exId?{...e,weight:Math.max(0,+(e.weight+delta).toFixed(2))}:e)}));
+        setPerSetData(p=>{
+          const ex=activeWorkout?.exercises.find(e=>e.id===exId);
+          if(!ex) return p;
+          const newP={...p};
+          Array.from({length:ex.sets},(_,i)=>{
+            const key=`${exId}_${i}`;
+            if(!completedSets[key]){
+              const current=p[key]?.weight ?? ex.weight;
+              newP[key]={...p[key],weight:Math.max(0,+(current+delta).toFixed(2))};
+            }
+          });
+          return newP;
         });
       };
 
@@ -656,13 +831,13 @@
 
       const saveNewExercise=async(addToWorkout=false)=>{
         if(!newEx.name.trim()) return;
-        const ex={id:"custom_"+Date.now(),name:newEx.name.trim(),category:newEx.category,unit:newEx.unit,defaultWeight:Number(newEx.defaultWeight)||0,increment:Number(newEx.increment)||5,custom:true};
+        const ex={id:"custom_"+Date.now(),name:newEx.name.trim(),category:newEx.category,unit:newEx.unit,defaultWeight:Number(newEx.defaultWeight)||0,increment:Number(newEx.increment)||5,equipmentType:newEx.equipmentType||"machine",barbellWeight:newEx.equipmentType==="barbell"?(Number(newEx.barbellWeight)||45):null,custom:true};
         const saved=await doAddCustomEx(ex);
         if(addToWorkout){
           if(activeTmpl) setExtraExIds(p=>[...p,saved.id]);
           else setCustomExIds(p=>[...p,saved.id]);
         }
-        setNewEx({name:"",category:"Chest",unit:"lbs",defaultWeight:45,increment:5});
+        setNewEx({name:"",category:"Chest",unit:"lbs",defaultWeight:45,increment:5,equipmentType:"machine",barbellWeight:45});
         setModal(null);showToast(ex.name+" added!");
       };
 
@@ -744,19 +919,69 @@
         <div style={{position:"fixed",top:24,left:"50%",transform:"translateX(-50%)",background:"var(--gold)",color:"var(--bg)",padding:"11px 22px",borderRadius:6,fontFamily:"'DM Mono',monospace",fontSize:12,letterSpacing:2,fontWeight:500,zIndex:600,boxShadow:"0 6px 24px rgba(200,146,42,0.4)",whiteSpace:"nowrap",textTransform:"uppercase"}}>{toast}</div>
       ):null;
 
-      const RestModal=restTimer!==null?(
-        <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.75)",zIndex:600,display:"flex",alignItems:"center",justifyContent:"center"}}>
-          <div style={{background:"var(--surface)",border:"1px solid var(--border2)",borderRadius:20,padding:"44px 56px",textAlign:"center",boxShadow:"0 8px 48px rgba(0,0,0,0.7)"}}>
-            <div style={{fontFamily:"'DM Mono',monospace",fontSize:10,letterSpacing:5,color:"var(--muted)",textTransform:"uppercase",marginBottom:14}}>Rest</div>
-            <div style={{fontFamily:"'Playfair Display',serif",fontSize:84,fontWeight:900,lineHeight:1,color:restTimer<=10?"var(--brick2)":restTimer<=30?"var(--gold2)":"var(--gold)",transition:"color 0.5s"}}>{restTimer}</div>
-            <div style={{fontFamily:"'DM Mono',monospace",fontSize:10,color:"var(--muted)",letterSpacing:3,marginTop:10,textTransform:"uppercase"}}>seconds</div>
-            <div style={{height:3,background:"var(--surface2)",borderRadius:2,overflow:"hidden",width:120,margin:"14px auto 0"}}>
-              <div style={{height:"100%",width:`${(restTimer/60)*100}%`,background:"var(--gold)",borderRadius:2,transition:"width 1s linear"}}/>
+      const RestModal=(()=>{
+        if(restTimer===null) return null;
+        // Figure out "up next"
+        let upNextLabel="", upNextDetail="";
+        if(activeWorkout){
+          const ex=activeWorkout.exercises[currentExIdx];
+          const setRepsArr=activeWorkout.setRepsMap?.[ex.id]||Array(ex.sets).fill(ex.reps);
+          // Find next uncompleted set in current or subsequent exercises
+          let foundNext=false;
+          for(let ei=currentExIdx;ei<activeWorkout.exercises.length&&!foundNext;ei++){
+            const e=activeWorkout.exercises[ei];
+            const sr=activeWorkout.setRepsMap?.[e.id]||Array(e.sets).fill(e.reps);
+            for(let si=0;si<e.sets&&!foundNext;si++){
+              if(!completedSets[`${e.id}_${si}`]){
+                const setW=perSetData[`${e.id}_${si}`]?.weight ?? e.weight;
+                const setR=perSetData[`${e.id}_${si}`]?.reps ?? sr[si];
+                upNextLabel=ei===currentExIdx?`S${si+1} of ${e.name}`:e.name;
+                upNextDetail=`${setW} ${e.unit!=="reps"?e.unit:""}× ${setR} reps`;
+                foundNext=true;
+              }
+            }
+          }
+        }
+        const timerDone=restTimer===0;
+        return(
+          <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.85)",zIndex:600,display:"flex",alignItems:"center",justifyContent:"center",padding:"20px"}}>
+            <div style={{background:"var(--surface)",border:"1px solid var(--border2)",borderRadius:20,padding:"36px 44px",textAlign:"center",boxShadow:"0 8px 48px rgba(0,0,0,0.7)",maxWidth:340,width:"100%"}}>
+              {timerDone?(
+                <>
+                  <div style={{fontSize:40,marginBottom:8}}>💪</div>
+                  <div style={{fontFamily:"'Playfair Display',serif",fontSize:22,fontWeight:900,color:"var(--gold)",marginBottom:6}}>Rest Over!</div>
+                  <div style={{fontFamily:"'DM Mono',monospace",fontSize:12,color:"var(--cream2)",letterSpacing:1,marginBottom:20,lineHeight:1.5}}>Do your next lift</div>
+                  {upNextLabel&&(
+                    <div style={{background:"rgba(200,146,42,0.1)",border:"1px solid rgba(200,146,42,0.3)",borderRadius:10,padding:"12px 16px",marginBottom:20}}>
+                      <div style={{fontFamily:"'DM Mono',monospace",fontSize:9,color:"var(--muted)",letterSpacing:3,textTransform:"uppercase",marginBottom:4}}>Up Next</div>
+                      <div style={{fontWeight:600,fontSize:15,color:"var(--cream)",marginBottom:2}}>{upNextLabel}</div>
+                      <div style={{fontFamily:"'DM Mono',monospace",fontSize:12,color:"var(--gold2)"}}>{upNextDetail}</div>
+                    </div>
+                  )}
+                  <button onClick={()=>{clearInterval(restIntervalRef.current);setRestTimer(null);}} style={{background:"var(--gold)",border:"none",borderRadius:10,padding:"14px 32px",color:"var(--bg)",fontFamily:"'DM Mono',monospace",fontSize:12,letterSpacing:2,cursor:"pointer",textTransform:"uppercase",fontWeight:600,width:"100%"}}>Got It ✓</button>
+                </>
+              ):(
+                <>
+                  <div style={{fontFamily:"'DM Mono',monospace",fontSize:10,letterSpacing:5,color:"var(--muted)",textTransform:"uppercase",marginBottom:14}}>Rest</div>
+                  <div style={{fontFamily:"'Playfair Display',serif",fontSize:84,fontWeight:900,lineHeight:1,color:restTimer<=10?"var(--brick2)":restTimer<=30?"var(--gold2)":"var(--gold)",transition:"color 0.5s"}}>{restTimer}</div>
+                  <div style={{fontFamily:"'DM Mono',monospace",fontSize:10,color:"var(--muted)",letterSpacing:3,marginTop:10,textTransform:"uppercase"}}>seconds</div>
+                  <div style={{height:3,background:"var(--surface2)",borderRadius:2,overflow:"hidden",width:120,margin:"14px auto 16px"}}>
+                    <div style={{height:"100%",width:`${(restTimer/60)*100}%`,background:"var(--gold)",borderRadius:2,transition:"width 1s linear"}}/>
+                  </div>
+                  {upNextLabel&&(
+                    <div style={{background:"rgba(200,146,42,0.06)",border:"1px solid rgba(200,146,42,0.18)",borderRadius:8,padding:"10px 14px",marginBottom:14,textAlign:"left"}}>
+                      <div style={{fontFamily:"'DM Mono',monospace",fontSize:8,color:"var(--muted)",letterSpacing:3,textTransform:"uppercase",marginBottom:3}}>Up Next</div>
+                      <div style={{fontWeight:600,fontSize:13,color:"var(--cream)",marginBottom:1}}>{upNextLabel}</div>
+                      <div style={{fontFamily:"'DM Mono',monospace",fontSize:11,color:"var(--gold2)"}}>{upNextDetail}</div>
+                    </div>
+                  )}
+                  <button onClick={()=>{clearInterval(restIntervalRef.current);setRestTimer(null);}} style={{background:"none",border:"1px solid var(--border2)",borderRadius:8,padding:"10px 28px",color:"var(--muted)",fontFamily:"'DM Mono',monospace",fontSize:10,letterSpacing:2,cursor:"pointer",textTransform:"uppercase"}}>Skip</button>
+                </>
+              )}
             </div>
-            <button onClick={()=>{clearInterval(restIntervalRef.current);setRestTimer(null);}} style={{marginTop:24,background:"none",border:"1px solid var(--border2)",borderRadius:8,padding:"10px 28px",color:"var(--muted)",fontFamily:"'DM Mono',monospace",fontSize:10,letterSpacing:2,cursor:"pointer",textTransform:"uppercase"}}>Skip</button>
           </div>
-        </div>
-      ):null;
+        );
+      })();
 
       const NavBar=({active})=>(
         <nav style={s.navBar}>
@@ -778,6 +1003,22 @@
               autoComplete="off" autoCorrect="off" autoCapitalize="words"/>
           </div>
           <div><span style={s.label}>Category</span><select style={s.select} value={newEx.category} onChange={e=>setNewEx(p=>({...p,category:e.target.value}))}>{CATEGORIES.map(c=><option key={c}>{c}</option>)}</select></div>
+          <div>
+            <span style={s.label}>Equipment Type</span>
+            <div style={{display:"flex",gap:6,flexWrap:"wrap",marginTop:4}}>
+              {[["barbell","🏋️ Barbell"],["dumbbell","💪 Dumbbell"],["cable","🔗 Cable"],["assisted","🤝 Assisted"],["machine","⚙️ Machine"],["bodyweight","🧍 Bodyweight"]].map(([key,lbl])=>(
+                <button key={key} type="button" onClick={()=>setNewEx(p=>({...p,equipmentType:key}))} style={{
+                  padding:"7px 11px",borderRadius:6,fontSize:11,fontFamily:"'DM Mono',monospace",cursor:"pointer",
+                  background:newEx.equipmentType===key?"rgba(200,146,42,0.18)":"var(--surface2)",
+                  border:newEx.equipmentType===key?"1px solid rgba(200,146,42,0.5)":"1px solid var(--border)",
+                  color:newEx.equipmentType===key?"var(--gold)":"var(--muted)",
+                }}>{lbl}</button>
+              ))}
+            </div>
+          </div>
+          {newEx.equipmentType==="barbell"&&(
+            <div><span style={s.label}>Barbell Weight (lbs)</span><input style={s.input} type="number" placeholder="45" value={newEx.barbellWeight||45} onChange={e=>setNewEx(p=>({...p,barbellWeight:Number(e.target.value)||45}))}/></div>
+          )}
           <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}>
             <div><span style={s.label}>Unit</span><select style={s.select} value={newEx.unit} onChange={e=>setNewEx(p=>({...p,unit:e.target.value}))}><option value="lbs">lbs</option><option value="kg">kg</option><option value="reps">Bodyweight</option></select></div>
             <div><span style={s.label}>Starting Weight</span><input style={s.input} type="number" value={newEx.defaultWeight} onChange={e=>setNewEx(p=>({...p,defaultWeight:e.target.value}))} disabled={newEx.unit==="reps"}/></div>
@@ -1194,10 +1435,27 @@
         const ex=exercises[currentExIdx];
         const done=setsForEx(ex);
         const allDone=done.every(Boolean);
-        const lastRec=getLastForExercise(ex.id);
         const isLast=currentExIdx===exercises.length-1;
         const progress=totalSets>0?totalDone/totalSets:0;
         const setRepsArr=activeWorkout.setRepsMap?.[ex.id]||Array(ex.sets).fill(ex.reps);
+        const bigInc=ex.bigIncrement||getBigIncrement(ex);
+        const isBarbell=ex.equipmentType==="barbell";
+        const barbellW=ex.barbellWeight||45;
+
+        // Historical data for this exercise
+        const historyForEx=(()=>{
+          let lastSession=null, personalBest=null;
+          let pbWeight=0;
+          workouts.forEach(w=>{
+            const e=w.exercises?.find(x=>x.id===ex.id);
+            if(!e) return;
+            const w1=e.setData&&e.setData.length>0?Math.max(...e.setData.map(s=>s.weight||0)):e.weight||0;
+            if(w1>pbWeight){pbWeight=w1;personalBest={date:w.date,weight:w1,reps:e.reps||0,setData:e.setData};}
+            lastSession={date:w.date,weight:e.weight,reps:e.reps,setData:e.setData};
+          });
+          return{lastSession,personalBest};
+        })();
+
         return(
           <div style={s.app}>
             {Toast}{RestModal}
@@ -1226,48 +1484,94 @@
                 <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:6}}>
                   <div>
                     <div style={{fontFamily:"'Playfair Display',serif",fontWeight:700,fontSize:26,lineHeight:1.2,color:"var(--cream)"}}>{ex.name}</div>
-                    <div style={{fontFamily:"'DM Mono',monospace",color:"var(--muted)",fontSize:12,marginTop:4,letterSpacing:1}}>
-                      {ex.sets} sets · {(activeWorkout.perExSchemes?.[ex.id]||"standard")} scheme
+                    <div style={{fontFamily:"'DM Mono',monospace",color:"var(--muted)",fontSize:11,marginTop:3,letterSpacing:0.5,display:"flex",gap:8,alignItems:"center"}}>
+                      <span>{ex.sets} sets · {(activeWorkout.perExSchemes?.[ex.id]||"standard")} scheme</span>
+                      {ex.equipmentType&&ex.equipmentType!=="machine"&&(
+                        <span style={{background:"rgba(200,146,42,0.1)",border:"1px solid rgba(200,146,42,0.25)",borderRadius:3,padding:"1px 5px",fontSize:9,letterSpacing:1,textTransform:"uppercase",color:"var(--gold2)"}}>
+                          {ex.equipmentType}
+                        </span>
+                      )}
                     </div>
                   </div>
                   {allDone&&<div style={{color:"var(--green2)",fontSize:26}}>✓</div>}
                 </div>
-                {lastRec&&(
-                  <div style={{fontFamily:"'DM Mono',monospace",fontSize:11,color:"var(--muted)",marginBottom:16,background:"var(--surface2)",borderRadius:6,padding:"8px 12px",letterSpacing:0.5}}>
-                    Last: {lastRec.exercise.weight}{lastRec.exercise.unit!=="reps"?" "+lastRec.exercise.unit:""} · {new Date(lastRec.workout.date).toLocaleDateString("en-US",{month:"short",day:"numeric",year:"numeric"})}
+
+                {/* Historical data */}
+                {(historyForEx.lastSession||historyForEx.personalBest)&&(
+                  <div style={{fontFamily:"'DM Mono',monospace",fontSize:11,color:"var(--muted)",marginBottom:14,background:"var(--surface2)",borderRadius:6,padding:"10px 12px",display:"flex",gap:16,flexWrap:"wrap"}}>
+                    {historyForEx.lastSession&&(
+                      <div>
+                        <div style={{fontSize:8,letterSpacing:2,textTransform:"uppercase",color:"var(--muted)",marginBottom:2}}>Last Session</div>
+                        <div style={{color:"var(--cream2)",fontSize:12}}>
+                          {historyForEx.lastSession.setData&&historyForEx.lastSession.setData.length>0
+                            ? historyForEx.lastSession.setData.map((sd,si)=>`S${si+1}: ${sd.weight}×${sd.reps}`).join("  ")
+                            : `${historyForEx.lastSession.weight} ${ex.unit!=="reps"?ex.unit:""} × ${historyForEx.lastSession.reps} reps`
+                          }
+                        </div>
+                        <div style={{fontSize:9,color:"var(--muted)",marginTop:1}}>{new Date(historyForEx.lastSession.date).toLocaleDateString("en-US",{month:"short",day:"numeric"})}</div>
+                      </div>
+                    )}
+                    {historyForEx.personalBest&&historyForEx.personalBest.weight>0&&(
+                      <div>
+                        <div style={{fontSize:8,letterSpacing:2,textTransform:"uppercase",color:"var(--gold)",marginBottom:2}}>Personal Best</div>
+                        <div style={{color:"var(--gold2)",fontSize:12,fontWeight:600}}>{historyForEx.personalBest.weight} {ex.unit!=="reps"?ex.unit:""}</div>
+                        <div style={{fontSize:9,color:"var(--muted)",marginTop:1}}>{new Date(historyForEx.personalBest.date).toLocaleDateString("en-US",{month:"short",day:"numeric"})}</div>
+                      </div>
+                    )}
                   </div>
                 )}
-                <div style={{display:"flex",alignItems:"center",gap:14,marginBottom:16,justifyContent:"center"}}>
+
+                {/* Global weight adjuster */}
+                <div style={{display:"flex",alignItems:"center",gap:14,marginBottom:6,justifyContent:"center"}}>
                   <div style={{display:"flex",flexDirection:"column",gap:4}}>
-                    <button style={s.setBtn} onClick={()=>adjustWeight(ex.id,-1)}>−</button>
-                    <button style={{...s.setBtn,fontSize:14,height:32}} onClick={()=>adjustWeight(ex.id,-0.25)}>-.25</button>
+                    <button style={s.setBtn} onClick={()=>adjustWeightGlobal(ex.id,-bigInc)}>−{bigInc}</button>
+                    <button style={{...s.setBtn,fontSize:14,height:32}} onClick={()=>adjustWeightGlobal(ex.id,-0.25)}>-.25</button>
                   </div>
                   <div style={{textAlign:"center",minWidth:90}}>
                     <div style={{fontFamily:"'Playfair Display',serif",fontSize:52,fontWeight:900,color:"var(--gold)",lineHeight:1}}>{ex.weight}</div>
                     <div style={{fontFamily:"'DM Mono',monospace",fontSize:10,color:"var(--muted)",letterSpacing:3,marginTop:2}}>{ex.unit==="reps"?"BODYWEIGHT":ex.unit.toUpperCase()}</div>
                     <div style={{fontFamily:"'DM Mono',monospace",fontSize:9,color:"var(--muted)",marginTop:2}}>BASE WEIGHT</div>
+                    {isBarbell&&ex.weight>barbellW&&(
+                      <div style={{fontFamily:"'DM Mono',monospace",fontSize:9,color:"var(--gold2)",marginTop:4,background:"rgba(200,146,42,0.1)",borderRadius:4,padding:"2px 6px"}}>
+                        +{((ex.weight-barbellW)/2).toFixed(2).replace(/\.?0+$/,"")} ea side
+                      </div>
+                    )}
                   </div>
                   <div style={{display:"flex",flexDirection:"column",gap:4}}>
-                    <button style={s.setBtn} onClick={()=>adjustWeight(ex.id,1)}>+</button>
-                    <button style={{...s.setBtn,fontSize:14,height:32}} onClick={()=>adjustWeight(ex.id,0.25)}>+.25</button>
+                    <button style={s.setBtn} onClick={()=>adjustWeightGlobal(ex.id,bigInc)}>+{bigInc}</button>
+                    <button style={{...s.setBtn,fontSize:14,height:32}} onClick={()=>adjustWeightGlobal(ex.id,0.25)}>+.25</button>
                   </div>
                 </div>
+                <div style={{fontFamily:"'DM Mono',monospace",fontSize:8,color:"var(--muted)",letterSpacing:2,textAlign:"center",marginBottom:14,textTransform:"uppercase"}}>
+                  Global weight (won't change completed sets)
+                </div>
+
                 <span style={{...s.label,marginBottom:10}}>Sets — tap to complete</span>
                 <div style={{display:"flex",flexDirection:"column",gap:8,marginBottom:14}}>
                   {done.map((d,i)=>{
                     const setKey=`${ex.id}_${i}`;
                     const setWeight=perSetData[setKey]?.weight ?? ex.weight;
                     const setReps=perSetData[setKey]?.reps ?? setRepsArr[i];
+                    const perSideWeight=isBarbell&&setWeight>barbellW?((setWeight-barbellW)/2):null;
                     return(
                       <div key={i} style={{display:"flex",alignItems:"center",gap:8,padding:"8px 10px",borderRadius:8,background:d?"rgba(200,146,42,0.12)":"var(--surface2)",border:d?"1px solid rgba(200,146,42,0.35)":"1px solid var(--border)"}}>
                         <button style={{...s.setDot(d),flexShrink:0,width:36,height:36,fontSize:12}} onClick={()=>toggleSet(ex.id,i)}>{d?"✓":`S${i+1}`}</button>
-                        <div style={{display:"flex",alignItems:"center",gap:4,flex:1}}>
-                          <button onClick={()=>adjustSetWeight(ex.id,i,-0.25)} style={{background:"var(--surface)",border:"1px solid var(--border2)",borderRadius:4,width:26,height:26,color:"var(--gold)",cursor:"pointer",fontSize:14,flexShrink:0}}>−</button>
-                          <div style={{textAlign:"center",minWidth:44}}>
-                            <div style={{fontFamily:"'DM Mono',monospace",fontSize:13,color:"var(--gold)",fontWeight:500}}>{setWeight}</div>
-                            <div style={{fontFamily:"'DM Mono',monospace",fontSize:8,color:"var(--muted)"}}>lbs</div>
+                        <div style={{display:"flex",flexDirection:"column",flex:1,minWidth:0}}>
+                          <div style={{display:"flex",alignItems:"center",gap:4}}>
+                            <button onClick={()=>adjustSetWeight(ex.id,i,-bigInc)} style={{background:"var(--surface)",border:"1px solid var(--border2)",borderRadius:4,width:26,height:26,color:"var(--gold)",cursor:"pointer",fontSize:12,flexShrink:0}}>−</button>
+                            <div style={{textAlign:"center",minWidth:44}}>
+                              <div style={{fontFamily:"'DM Mono',monospace",fontSize:13,color:"var(--gold)",fontWeight:500}}>{setWeight}</div>
+                              <div style={{fontFamily:"'DM Mono',monospace",fontSize:8,color:"var(--muted)"}}>{ex.unit!=="reps"?ex.unit:"bw"}</div>
+                            </div>
+                            <button onClick={()=>adjustSetWeight(ex.id,i,bigInc)} style={{background:"var(--surface)",border:"1px solid var(--border2)",borderRadius:4,width:26,height:26,color:"var(--gold)",cursor:"pointer",fontSize:12,flexShrink:0}}>+</button>
+                            <button onClick={()=>adjustSetWeight(ex.id,i,-0.25)} style={{background:"var(--surface)",border:"1px solid var(--border)",borderRadius:3,width:22,height:22,color:"var(--muted)",cursor:"pointer",fontSize:10,flexShrink:0}}>-.25</button>
+                            <button onClick={()=>adjustSetWeight(ex.id,i,0.25)} style={{background:"var(--surface)",border:"1px solid var(--border)",borderRadius:3,width:22,height:22,color:"var(--muted)",cursor:"pointer",fontSize:10,flexShrink:0}}>+.25</button>
                           </div>
-                          <button onClick={()=>adjustSetWeight(ex.id,i,0.25)} style={{background:"var(--surface)",border:"1px solid var(--border2)",borderRadius:4,width:26,height:26,color:"var(--gold)",cursor:"pointer",fontSize:14,flexShrink:0}}>+</button>
+                          {isBarbell&&perSideWeight!==null&&(
+                            <div style={{fontFamily:"'DM Mono',monospace",fontSize:8,color:"var(--gold2)",marginTop:2,paddingLeft:2}}>
+                              +{perSideWeight.toFixed(2).replace(/\.?0+$/,"")} lbs/side
+                            </div>
+                          )}
                         </div>
                         <div style={{display:"flex",alignItems:"center",gap:4}}>
                           <button onClick={()=>adjustSetReps(ex.id,i,-1)} style={{background:"var(--surface)",border:"1px solid var(--border2)",borderRadius:4,width:26,height:26,color:"var(--cream2)",cursor:"pointer",fontSize:14,flexShrink:0}}>−</button>
@@ -1302,30 +1606,49 @@
 
       // ── WORKOUT SUMMARY ──────────────────────────────────────
       if(screen==="summary"&&summaryData){
+
         const sd=summaryData;
         const achievedGoals=sd.exercises.flatMap(ex=>ex.matchedGoals||[]);
+        const prCount=sd.exercises.filter(e=>e.improved).length;
         return(
           <div style={s.app}>
+            <Confetti/>
             {renderModal()}{Toast}
             <div style={{...s.content,...s.contentPt}}>
               <div style={s.header}>
                 <div style={s.logo}>IRONFORM</div>
                 <span style={s.tag}>{sd.templateLabel}</span>
               </div>
-              <div style={{...s.cardWarm,textAlign:"center",padding:28,marginBottom:16}}>
-                <div style={{fontSize:36,marginBottom:8}}>🏆</div>
-                <div style={{fontFamily:"'Playfair Display',serif",fontSize:28,color:"var(--gold)",marginBottom:4}}>Session Complete</div>
+              <div style={{...s.cardWarm,textAlign:"center",padding:28,marginBottom:16,position:"relative",overflow:"hidden"}}>
+                <div style={{fontSize:48,marginBottom:8,animation:"none"}}>{prCount>0?"🏆":"🎯"}</div>
+                <div style={{fontFamily:"'Playfair Display',serif",fontSize:30,color:"var(--gold)",marginBottom:4,fontWeight:900}}>
+                  {prCount>0?"You Crushed It!":"Session Complete"}
+                </div>
                 <div style={{fontFamily:"'DM Mono',monospace",fontSize:11,color:"var(--muted)",letterSpacing:2}}>
                   {new Date(sd.date).toLocaleDateString("en-US",{weekday:"long",month:"long",day:"numeric"})}
                 </div>
                 <div style={{display:"flex",justifyContent:"center",gap:24,marginTop:18}}>
-                  {[{label:"Exercises",value:sd.exercises.length},{label:"Sets Done",value:sd.exercises.reduce((a,e)=>a+e.completedSets,0)},{label:"PRs",value:sd.exercises.filter(e=>e.improved).length}].map(stat=>(
+                  {[{label:"Exercises",value:sd.exercises.length},{label:"Sets Done",value:sd.exercises.reduce((a,e)=>a+e.completedSets,0)},{label:"PRs",value:prCount}].map(stat=>(
                     <div key={stat.label} style={{textAlign:"center"}}>
-                      <div style={{fontFamily:"'Playfair Display',serif",fontSize:26,color:"var(--cream)",lineHeight:1}}>{stat.value}</div>
+                      <div style={{fontFamily:"'Playfair Display',serif",fontSize:26,color:stat.label==="PRs"&&stat.value>0?"var(--green2)":"var(--cream)",lineHeight:1}}>{stat.value}</div>
                       <div style={{fontFamily:"'DM Mono',monospace",fontSize:9,color:"var(--muted)",letterSpacing:2,marginTop:3,textTransform:"uppercase"}}>{stat.label}</div>
                     </div>
                   ))}
                 </div>
+                {/* Total volume */}
+                {(()=>{
+                  const vol=sd.exercises.reduce((acc,ex)=>{
+                    if(ex.unit==="reps") return acc;
+                    const sets=ex.setData||[];
+                    return acc+sets.reduce((a,s)=>(s.weight||0)*(s.reps||0)+a,0);
+                  },0);
+                  if(!vol) return null;
+                  return(
+                    <div style={{marginTop:12,fontFamily:"'DM Mono',monospace",fontSize:11,color:"var(--gold2)",letterSpacing:1}}>
+                      Total Volume: {vol.toLocaleString()} lbs
+                    </div>
+                  );
+                })()}
               </div>
               {achievedGoals.length>0&&(
                 <div style={{...s.card,background:"rgba(74,124,89,0.12)",border:"1px solid rgba(74,124,89,0.35)",marginBottom:10}}>
@@ -1396,6 +1719,16 @@
                       <div style={{fontFamily:"'DM Mono',monospace",fontSize:11,color:"var(--muted)"}}>
                         Target: <span style={{color:"var(--gold)"}}>{goal.targetWeight} {def.unit}</span>
                         {current&&<span> · Current: <span style={{color:"var(--cream2)"}}>{current} {def.unit}</span></span>}
+                        {(()=>{
+                          const orm=getEffective1RM(oneRepMaxes,workouts,goal.exId);
+                          if(!orm) return null;
+                          return(
+                            <span style={{display:"block",marginTop:2}}>
+                              Est. 1RM: <span style={{color:"var(--gold2)"}}>{orm.value} {def.unit}</span>
+                              <span style={{fontSize:9,color:"var(--muted)",marginLeft:4}}>({orm.source==="stored"?"entered":"Epley calc"})</span>
+                            </span>
+                          );
+                        })()}
                       </div>
                     </div>
                     <button onClick={()=>doDelLiftGoal(goal._id)} style={{background:"none",border:"none",color:"var(--muted)",cursor:"pointer",fontSize:16,lineHeight:1,padding:"0 2px",flexShrink:0}}>×</button>
@@ -1609,20 +1942,91 @@
             <div style={{...s.card,marginBottom:14}}>
               <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:12}}>
                 <span style={s.label}>Custom Exercises ({customExs.length})</span>
-                <button style={s.btnSm} onClick={()=>{setNewEx({name:"",category:"Chest",unit:"lbs",defaultWeight:45,increment:5});setModal("addExercise");}}>+ New</button>
+                <button style={s.btnSm} onClick={()=>{setNewEx({name:"",category:"Chest",unit:"lbs",defaultWeight:45,increment:5,equipmentType:"machine",barbellWeight:45});setModal("addExercise");}}>+ New</button>
               </div>
               {customExs.length===0?<p style={{fontFamily:"'DM Mono',monospace",color:"var(--muted)",fontSize:12,letterSpacing:0.5}}>None yet.</p>:customExs.map(ex=>(
                 <div key={ex._fid||ex.id} style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"8px 0",borderBottom:"1px solid var(--border)"}}>
-                  <div><span style={{fontSize:14,color:"var(--cream)"}}>{ex.name}</span><div style={{fontFamily:"'DM Mono',monospace",fontSize:10,color:"var(--muted)",marginTop:2}}>{ex.category} · {ex.unit==="reps"?"bodyweight":`${ex.defaultWeight}${ex.unit}`}</div></div>
+                  <div>
+                    <span style={{fontSize:14,color:"var(--cream)"}}>{ex.name}</span>
+                    <div style={{fontFamily:"'DM Mono',monospace",fontSize:10,color:"var(--muted)",marginTop:2}}>
+                      {ex.category} · {ex.unit==="reps"?"bodyweight":`${ex.defaultWeight}${ex.unit}`}
+                      {ex.equipmentType&&ex.equipmentType!=="machine"&&` · ${ex.equipmentType}`}
+                    </div>
+                  </div>
                 </div>
               ))}
             </div>
+
+            {/* ── 1 REP MAX SECTION ── */}
+            <div style={{...s.card,marginBottom:14}}>
+              <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:4}}>
+                <span style={s.label}>One-Rep Maxes</span>
+                <button style={s.btnSm} onClick={()=>{
+                  const init={};
+                  ["bench","squat","lat_pulldown"].forEach(id=>{
+                    const stored=oneRepMaxes.find(r=>r.exId===id);
+                    init[id]=stored?stored.weight:"";
+                  });
+                  setDraft1RMs(init);
+                  setEditing1RMs(true);
+                }}>{editing1RMs?"Cancel":"Edit"}</button>
+              </div>
+              <p style={{fontFamily:"'DM Mono',monospace",color:"var(--muted)",fontSize:10,marginBottom:12,letterSpacing:0.5,lineHeight:1.5}}>
+                Enter your known 1RM. If left blank or older than 15 days, the app uses the Epley formula to estimate it from your recent lifts.
+              </p>
+              {[{id:"bench",name:"Bench Press"},{id:"squat",name:"Squat"},{id:"lat_pulldown",name:"Lat Pull Down"}].map(({id,name})=>{
+                const stored=oneRepMaxes.find(r=>r.exId===id);
+                const calculated=calcEpley1RM(workouts,id);
+                const effective=getEffective1RM(oneRepMaxes,workouts,id);
+                return(
+                  <div key={id} style={{padding:"10px 0",borderBottom:"1px solid var(--border)"}}>
+                    <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+                      <span style={{fontSize:14,color:"var(--cream)",fontWeight:600}}>{name}</span>
+                      <div style={{textAlign:"right"}}>
+                        {effective?(
+                          <div style={{fontFamily:"'DM Mono',monospace",fontSize:13,color:"var(--gold)",fontWeight:600}}>{effective.value} lbs</div>
+                        ):(
+                          <div style={{fontFamily:"'DM Mono',monospace",fontSize:11,color:"var(--muted)"}}>No data yet</div>
+                        )}
+                        {effective&&<div style={{fontFamily:"'DM Mono',monospace",fontSize:9,color:"var(--muted)"}}>{effective.source==="stored"?"Entered":"Epley calc"}</div>}
+                      </div>
+                    </div>
+                    {editing1RMs&&(
+                      <div style={{display:"flex",alignItems:"center",gap:8,marginTop:8}}>
+                        <input
+                          style={{...s.input,flex:1,padding:"8px 12px",fontSize:13}}
+                          type="number" placeholder="Enter lbs (leave blank to use calc)"
+                          value={draft1RMs[id]||""}
+                          onChange={e=>setDraft1RMs(p=>({...p,[id]:e.target.value}))}
+                        />
+                        {stored&&<button onClick={async()=>{await doDel1RM(id);showToast("1RM cleared");}} style={{background:"none",border:"none",color:"var(--brick2)",cursor:"pointer",fontSize:16}}>×</button>}
+                      </div>
+                    )}
+                    {stored&&!editing1RMs&&(
+                      <div style={{fontFamily:"'DM Mono',monospace",fontSize:9,color:"var(--muted)",marginTop:2}}>
+                        Updated {new Date(stored.updatedAt).toLocaleDateString("en-US",{month:"short",day:"numeric",year:"numeric"})}
+                        {(Date.now()-new Date(stored.updatedAt))/86400000>15&&" · Expired, using calc"}
+                      </div>
+                    )}
+                    {calculated&&!stored&&<div style={{fontFamily:"'DM Mono',monospace",fontSize:9,color:"var(--muted)",marginTop:2}}>Calc from recent lifts: {calculated} lbs</div>}
+                  </div>
+                );
+              })}
+              {editing1RMs&&(
+                <button style={{...s.btn,marginTop:12}} onClick={async()=>{
+                  for(const [id,val] of Object.entries(draft1RMs)){
+                    if(val&&!isNaN(Number(val))&&Number(val)>0) await doSave1RM(id,Number(val));
+                  }
+                  setEditing1RMs(false);showToast("1RMs saved!");
+                }}>Save 1RMs</button>
+              )}
+            </div>
+
             <button style={{...s.btnDanger,width:"100%",marginTop:6}} onClick={handleSignOut}>Sign Out</button>
           </div>
           <NavBar active="profile"/>
         </div>
       );
-
       // ── HOME SCREEN ─────────────────────────────────────────
       const tiles=[
         ...WORKOUT_TEMPLATES.map(tmpl=>{
