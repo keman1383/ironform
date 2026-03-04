@@ -77,8 +77,20 @@
     const { useState, useEffect, useRef, useCallback } = React;
 
     // ── VERSION INFO ──────────────────────────────────────────────
-    const APP_VERSION = "2.3.0";
+    const APP_VERSION = "2.4.0";
     const RELEASE_HISTORY = [
+      {
+        version: "2.4.0",
+        date: "2026-03-04",
+        features: [
+          "Alert tone + haptic buzz when rest timer hits 30s (soft) and 0s (sharp)",
+          "Equipment type and barbell weight displayed on exercise card during workout",
+          "Auto-advance to next exercise after last set of current exercise (no timer between exercises)",
+          "Set a lift goal on any exercise during a workout without leaving the screen",
+          "Swap exercise mid-workout — pick any exercise from the same muscle group",
+          "Change equipment type mid-workout, with live barbell weight editor",
+        ],
+      },
       {
         version: "2.3.0",
         date: "2026-03-02",
@@ -325,6 +337,52 @@
     }
 
 
+    // ── AUDIO + HAPTIC ALERTS ─────────────────────────────────────
+    function playAlertTone(type) {
+      try {
+        const ctx = new (window.AudioContext || window.webkitAudioContext)();
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+        if (type === "soft") {
+          // 30s warning: two soft mid-tone beeps
+          osc.frequency.setValueAtTime(660, ctx.currentTime);
+          gain.gain.setValueAtTime(0.25, ctx.currentTime);
+          gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.25);
+          osc.start(ctx.currentTime);
+          osc.stop(ctx.currentTime + 0.25);
+          // second beep
+          const osc2 = ctx.createOscillator();
+          const gain2 = ctx.createGain();
+          osc2.connect(gain2); gain2.connect(ctx.destination);
+          osc2.frequency.setValueAtTime(660, ctx.currentTime + 0.35);
+          gain2.gain.setValueAtTime(0.25, ctx.currentTime + 0.35);
+          gain2.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.60);
+          osc2.start(ctx.currentTime + 0.35);
+          osc2.stop(ctx.currentTime + 0.60);
+        } else {
+          // end tone: three sharper ascending beeps
+          [0, 0.22, 0.44].forEach((offset, i) => {
+            const o = ctx.createOscillator();
+            const g = ctx.createGain();
+            o.connect(g); g.connect(ctx.destination);
+            o.frequency.setValueAtTime(520 + i * 120, ctx.currentTime + offset);
+            g.gain.setValueAtTime(0.4, ctx.currentTime + offset);
+            g.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + offset + 0.2);
+            o.start(ctx.currentTime + offset);
+            o.stop(ctx.currentTime + offset + 0.2);
+          });
+        }
+      } catch(e) { /* audio not available */ }
+      // Haptic
+      try {
+        if (navigator.vibrate) {
+          navigator.vibrate(type === "soft" ? [100, 80, 100] : [200, 100, 200, 100, 200]);
+        }
+      } catch(e) {}
+    }
+
     // Confetti component
     function Confetti() {
       const canvasRef=useRef(null);
@@ -551,6 +609,12 @@
       const [newLiftGoal,   setNewLiftGoal]   = useState({exId:"",targetWeight:""});
       const [editing1RMs,   setEditing1RMs]   = useState(false);
       const [draft1RMs,     setDraft1RMs]     = useState({});
+      // Workout mid-session feature state
+      const [swapModal,     setSwapModal]     = useState(null);  // exId being swapped
+      const [equipModal,    setEquipModal]    = useState(null);  // exId being edited
+      const [draftEquip,    setDraftEquip]    = useState({});    // {equipmentType, barbellWeight}
+      const [inlineGoal,    setInlineGoal]    = useState(null);  // exId with goal form open
+      const [inlineGoalVal, setInlineGoalVal] = useState("");
       const [pastDate,      setPastDate]      = useState("");
       const [pastRows,      setPastRows]      = useState([{exId:"",sets:[{weight:"",reps:""}]}]);
       const [signInErr,     setSignInErr]     = useState(null);
@@ -758,7 +822,12 @@
         restIntervalRef.current=setInterval(()=>{
           setRestTimer(prev=>{
             if(prev===null){clearInterval(restIntervalRef.current);return null;}
-            if(prev<=1){clearInterval(restIntervalRef.current);return 0;} // stay at 0, don't null
+            if(prev<=1){
+              clearInterval(restIntervalRef.current);
+              playAlertTone("end");
+              return 0;
+            }
+            if(prev===31) playAlertTone("soft");
             return prev-1;
           });
         },1000);
@@ -770,18 +839,31 @@
           const wasCompleted=!!p[key];
           const newState={...p,[key]:!wasCompleted};
           if(!wasCompleted){
-            // Check if this is the very last set of the entire workout
-            const allSetsAfterThis=activeWorkout.exercises.flatMap(ex=>
+            const allSets=activeWorkout.exercises.flatMap(ex=>
               Array.from({length:ex.sets},(_,si)=>({exId:ex.id,setIdx:si,key:`${ex.id}_${si}`}))
             );
-            const remainingIncludingThis=allSetsAfterThis.filter(s=>!newState[s.key]);
-            if(remainingIncludingThis.length===0){
-              // Last set — skip timer, go to finish
+            const remaining=allSets.filter(s=>!newState[s.key]);
+            if(remaining.length===0){
+              // Last set of entire workout — skip timer, finish
               clearInterval(restIntervalRef.current);
               setRestTimer(null);
               setTimeout(()=>finishWorkoutWithState(newState),100);
             } else {
-              startRestTimer();
+              // Check if all sets of the CURRENT exercise are now done
+              const currentEx=activeWorkout.exercises[currentExIdx];
+              const currentExSets=Array.from({length:currentEx.sets},(_,si)=>newState[`${currentEx.id}_${si}`]);
+              const currentExAllDone=currentExSets.every(Boolean);
+              if(currentExAllDone && exId===currentEx.id){
+                // Auto-advance to next exercise, no rest timer
+                clearInterval(restIntervalRef.current);
+                setRestTimer(null);
+                const nextIdx=currentExIdx+1;
+                if(nextIdx<activeWorkout.exercises.length){
+                  setTimeout(()=>setCurrentExIdx(nextIdx),150);
+                }
+              } else {
+                startRestTimer();
+              }
             }
           }
           return newState;
@@ -826,6 +908,71 @@
       };
 
       const setsForEx=(ex)=>Array.from({length:ex.sets},(_,i)=>!!completedSets[`${ex.id}_${i}`]);
+
+      // Swap exercise in active workout
+      const swapExercise=(oldExId, newExId)=>{
+        const newDef=allExercises.find(e=>e.id===newExId);
+        if(!newDef) return;
+        const oldEx=activeWorkout.exercises.find(e=>e.id===oldExId);
+        const bigInc=getBigIncrement(newDef);
+        const last=getLastForExercise(newExId);
+        const goal=profile?.goal||"hypertrophy";
+        let weight=newDef.defaultWeight;
+        if(last){
+          const days=(Date.now()-new Date(last.workout.date))/86400000;
+          weight=safeProgressWeight(last.exercise.weight,goal,Math.max(1,Math.round(days/7)),newDef.unit);
+        }
+        const newEx={
+          id:newExId,name:newDef.name,category:newDef.category,
+          weight,unit:newDef.unit,sets:oldEx.sets,reps:oldEx.reps,
+          increment:newDef.increment,bigIncrement:bigInc,
+          equipmentType:newDef.equipmentType||"machine",
+          barbellWeight:newDef.barbellWeight||null,
+        };
+        setActiveWorkout(p=>({
+          ...p,
+          exercises:p.exercises.map(e=>e.id===oldExId?newEx:e),
+          setRepsMap:{...p.setRepsMap,[newExId]:p.setRepsMap[oldExId]||Array(oldEx.sets).fill(oldEx.reps)},
+        }));
+        // Migrate completed sets keys
+        setCompletedSets(p=>{
+          const n={...p};
+          Array.from({length:oldEx.sets},(_,i)=>{
+            const ok=`${oldExId}_${i}`, nk=`${newExId}_${i}`;
+            if(n[ok]){n[nk]=true;} delete n[ok];
+          });
+          return n;
+        });
+        setPerSetData(p=>{
+          const n={...p};
+          Array.from({length:oldEx.sets},(_,i)=>{
+            const ok=`${oldExId}_${i}`, nk=`${newExId}_${i}`;
+            if(n[ok]){n[nk]=n[ok];} delete n[ok];
+          });
+          return n;
+        });
+        // Update currentExIdx if needed
+        const idx=activeWorkout.exercises.findIndex(e=>e.id===oldExId);
+        if(idx>=0) setCurrentExIdx(idx);
+        setSwapModal(null);
+        showToast(newDef.name+" swapped in!");
+      };
+
+      // Update equipment type/barbellWeight on active exercise
+      const applyEquipChange=(exId)=>{
+        setActiveWorkout(p=>({
+          ...p,
+          exercises:p.exercises.map(e=>e.id===exId?{
+            ...e,
+            equipmentType:draftEquip.equipmentType||e.equipmentType,
+            barbellWeight:draftEquip.barbellWeight!=null?Number(draftEquip.barbellWeight):e.barbellWeight,
+            bigIncrement:getBigIncrement({...e,equipmentType:draftEquip.equipmentType||e.equipmentType}),
+          }:e),
+        }));
+        setEquipModal(null);
+        showToast("Equipment updated!");
+      };
+
       const totalSets=activeWorkout?activeWorkout.exercises.reduce((a,e)=>a+e.sets,0):0;
       const totalDone=activeWorkout?activeWorkout.exercises.reduce((a,ex)=>{setsForEx(ex).forEach(d=>{if(d)a++;});return a;},0):0;
 
@@ -1480,112 +1627,132 @@
                   })}
                 </div>
               </div>
-              <div style={{...s.card,padding:22,marginBottom:12}}>
-                <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:6}}>
-                  <div>
-                    <div style={{fontFamily:"'Playfair Display',serif",fontWeight:700,fontSize:26,lineHeight:1.2,color:"var(--cream)"}}>{ex.name}</div>
-                    <div style={{fontFamily:"'DM Mono',monospace",color:"var(--muted)",fontSize:11,marginTop:3,letterSpacing:0.5,display:"flex",gap:8,alignItems:"center"}}>
-                      <span>{ex.sets} sets · {(activeWorkout.perExSchemes?.[ex.id]||"standard")} scheme</span>
-                      {ex.equipmentType&&ex.equipmentType!=="machine"&&(
-                        <span style={{background:"rgba(200,146,42,0.1)",border:"1px solid rgba(200,146,42,0.25)",borderRadius:3,padding:"1px 5px",fontSize:9,letterSpacing:1,textTransform:"uppercase",color:"var(--gold2)"}}>
-                          {ex.equipmentType}
-                        </span>
-                      )}
+              <div style={{...s.card,padding:16,marginBottom:10}}>
+                {/* Exercise header row */}
+                <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:4}}>
+                  <div style={{flex:1,minWidth:0}}>
+                    <div style={{fontFamily:"'Playfair Display',serif",fontWeight:700,fontSize:22,lineHeight:1.2,color:"var(--cream)"}}>{ex.name}</div>
+                    <div style={{fontFamily:"'DM Mono',monospace",color:"var(--muted)",fontSize:10,marginTop:2,letterSpacing:0.5,display:"flex",gap:6,alignItems:"center",flexWrap:"wrap"}}>
+                      <span>{ex.sets} sets · {(activeWorkout.perExSchemes?.[ex.id]||"standard")}</span>
+                      {/* Equipment badge — tappable to edit */}
+                      <button onClick={()=>{setDraftEquip({equipmentType:ex.equipmentType||"machine",barbellWeight:ex.barbellWeight||45});setEquipModal(ex.id);}} style={{background:"rgba(200,146,42,0.1)",border:"1px solid rgba(200,146,42,0.25)",borderRadius:3,padding:"1px 6px",fontSize:9,letterSpacing:1,textTransform:"uppercase",color:"var(--gold2)",cursor:"pointer",fontFamily:"'DM Mono',monospace"}}>
+                        {ex.equipmentType||"machine"}
+                        {isBarbell&&` · ${barbellW}lb bar`}
+                        {" ✎"}
+                      </button>
                     </div>
                   </div>
-                  {allDone&&<div style={{color:"var(--green2)",fontSize:26}}>✓</div>}
+                  {/* Action buttons: swap + goal */}
+                  <div style={{display:"flex",gap:6,alignItems:"center",flexShrink:0,marginLeft:8}}>
+                    <button onClick={()=>setSwapModal(ex.id)} title="Swap exercise" style={{background:"var(--surface2)",border:"1px solid var(--border)",borderRadius:6,padding:"5px 8px",color:"var(--muted)",cursor:"pointer",fontSize:11,fontFamily:"'DM Mono',monospace",letterSpacing:1}}>⇄</button>
+                    <button onClick={()=>{setInlineGoal(ex.id);setInlineGoalVal("");}} title="Set goal" style={{background:"var(--surface2)",border:"1px solid var(--border)",borderRadius:6,padding:"5px 8px",color:"var(--muted)",cursor:"pointer",fontSize:11,fontFamily:"'DM Mono',monospace",letterSpacing:1}}>🎯</button>
+                    {allDone&&<div style={{color:"var(--green2)",fontSize:22}}>✓</div>}
+                  </div>
                 </div>
 
-                {/* Historical data */}
+                {/* Inline goal setter */}
+                {inlineGoal===ex.id&&(
+                  <div style={{background:"rgba(74,124,89,0.1)",border:"1px solid rgba(74,124,89,0.3)",borderRadius:8,padding:"10px 12px",marginBottom:10,display:"flex",gap:8,alignItems:"center"}}>
+                    <span style={{fontFamily:"'DM Mono',monospace",fontSize:9,color:"var(--green2)",letterSpacing:2,textTransform:"uppercase",whiteSpace:"nowrap"}}>Goal (lbs)</span>
+                    <input style={{...s.input,flex:1,padding:"7px 10px",fontSize:13}} type="number" placeholder={`e.g. ${Math.round(ex.weight*1.2/5)*5}`} value={inlineGoalVal} onChange={e=>setInlineGoalVal(e.target.value)} autoFocus/>
+                    <button onClick={async()=>{
+                      if(!inlineGoalVal||isNaN(Number(inlineGoalVal))) return;
+                      await doAddLiftGoal({exId:ex.id,targetWeight:Number(inlineGoalVal),created:new Date().toISOString()});
+                      setInlineGoal(null);setInlineGoalVal("");showToast("Goal set!");
+                    }} style={{background:"var(--green2)",border:"none",borderRadius:6,padding:"7px 12px",color:"var(--bg)",fontFamily:"'DM Mono',monospace",fontSize:10,letterSpacing:1,cursor:"pointer",whiteSpace:"nowrap"}}>Set ✓</button>
+                    <button onClick={()=>setInlineGoal(null)} style={{background:"none",border:"none",color:"var(--muted)",cursor:"pointer",fontSize:18,lineHeight:1}}>×</button>
+                  </div>
+                )}
+
+                {/* Historical data — compact single line */}
                 {(historyForEx.lastSession||historyForEx.personalBest)&&(
-                  <div style={{fontFamily:"'DM Mono',monospace",fontSize:11,color:"var(--muted)",marginBottom:14,background:"var(--surface2)",borderRadius:6,padding:"10px 12px",display:"flex",gap:16,flexWrap:"wrap"}}>
+                  <div style={{fontFamily:"'DM Mono',monospace",fontSize:10,color:"var(--muted)",marginBottom:10,background:"var(--surface2)",borderRadius:6,padding:"7px 10px",display:"flex",gap:14,flexWrap:"wrap",alignItems:"flex-start"}}>
                     {historyForEx.lastSession&&(
                       <div>
-                        <div style={{fontSize:8,letterSpacing:2,textTransform:"uppercase",color:"var(--muted)",marginBottom:2}}>Last Session</div>
-                        <div style={{color:"var(--cream2)",fontSize:12}}>
+                        <span style={{fontSize:8,letterSpacing:2,textTransform:"uppercase",color:"var(--muted)"}}>Last  </span>
+                        <span style={{color:"var(--cream2)"}}>
                           {historyForEx.lastSession.setData&&historyForEx.lastSession.setData.length>0
-                            ? historyForEx.lastSession.setData.map((sd,si)=>`S${si+1}: ${sd.weight}×${sd.reps}`).join("  ")
-                            : `${historyForEx.lastSession.weight} ${ex.unit!=="reps"?ex.unit:""} × ${historyForEx.lastSession.reps} reps`
+                            ? historyForEx.lastSession.setData.map((sd,si)=>`S${si+1}:${sd.weight}×${sd.reps}`).join(" ")
+                            : `${historyForEx.lastSession.weight}×${historyForEx.lastSession.reps}`
                           }
-                        </div>
-                        <div style={{fontSize:9,color:"var(--muted)",marginTop:1}}>{new Date(historyForEx.lastSession.date).toLocaleDateString("en-US",{month:"short",day:"numeric"})}</div>
+                        </span>
+                        <span style={{color:"var(--muted)",fontSize:9}}>  {new Date(historyForEx.lastSession.date).toLocaleDateString("en-US",{month:"short",day:"numeric"})}</span>
                       </div>
                     )}
                     {historyForEx.personalBest&&historyForEx.personalBest.weight>0&&(
                       <div>
-                        <div style={{fontSize:8,letterSpacing:2,textTransform:"uppercase",color:"var(--gold)",marginBottom:2}}>Personal Best</div>
-                        <div style={{color:"var(--gold2)",fontSize:12,fontWeight:600}}>{historyForEx.personalBest.weight} {ex.unit!=="reps"?ex.unit:""}</div>
-                        <div style={{fontSize:9,color:"var(--muted)",marginTop:1}}>{new Date(historyForEx.personalBest.date).toLocaleDateString("en-US",{month:"short",day:"numeric"})}</div>
+                        <span style={{fontSize:8,letterSpacing:2,textTransform:"uppercase",color:"var(--gold)"}}>PB  </span>
+                        <span style={{color:"var(--gold2)",fontWeight:600}}>{historyForEx.personalBest.weight}{ex.unit!=="reps"?ex.unit:""}</span>
+                        <span style={{color:"var(--muted)",fontSize:9}}>  {new Date(historyForEx.personalBest.date).toLocaleDateString("en-US",{month:"short",day:"numeric"})}</span>
                       </div>
                     )}
                   </div>
                 )}
 
                 {/* Global weight adjuster */}
-                <div style={{display:"flex",alignItems:"center",gap:14,marginBottom:6,justifyContent:"center"}}>
-                  <div style={{display:"flex",flexDirection:"column",gap:4}}>
-                    <button style={s.setBtn} onClick={()=>adjustWeightGlobal(ex.id,-bigInc)}>−{bigInc}</button>
-                    <button style={{...s.setBtn,fontSize:14,height:32}} onClick={()=>adjustWeightGlobal(ex.id,-0.25)}>-.25</button>
+                <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:4,justifyContent:"center"}}>
+                  <div style={{display:"flex",flexDirection:"column",gap:3}}>
+                    <button style={{...s.setBtn,height:40}} onClick={()=>adjustWeightGlobal(ex.id,-bigInc)}>−{bigInc}</button>
+                    <button style={{...s.setBtn,fontSize:12,height:28}} onClick={()=>adjustWeightGlobal(ex.id,-0.25)}>-.25</button>
                   </div>
-                  <div style={{textAlign:"center",minWidth:90}}>
-                    <div style={{fontFamily:"'Playfair Display',serif",fontSize:52,fontWeight:900,color:"var(--gold)",lineHeight:1}}>{ex.weight}</div>
-                    <div style={{fontFamily:"'DM Mono',monospace",fontSize:10,color:"var(--muted)",letterSpacing:3,marginTop:2}}>{ex.unit==="reps"?"BODYWEIGHT":ex.unit.toUpperCase()}</div>
-                    <div style={{fontFamily:"'DM Mono',monospace",fontSize:9,color:"var(--muted)",marginTop:2}}>BASE WEIGHT</div>
+                  <div style={{textAlign:"center",minWidth:80}}>
+                    <div style={{fontFamily:"'Playfair Display',serif",fontSize:44,fontWeight:900,color:"var(--gold)",lineHeight:1}}>{ex.weight}</div>
+                    <div style={{fontFamily:"'DM Mono',monospace",fontSize:9,color:"var(--muted)",letterSpacing:2,marginTop:1}}>{ex.unit==="reps"?"BODYWEIGHT":ex.unit.toUpperCase()}</div>
                     {isBarbell&&ex.weight>barbellW&&(
-                      <div style={{fontFamily:"'DM Mono',monospace",fontSize:9,color:"var(--gold2)",marginTop:4,background:"rgba(200,146,42,0.1)",borderRadius:4,padding:"2px 6px"}}>
+                      <div style={{fontFamily:"'DM Mono',monospace",fontSize:9,color:"var(--gold2)",marginTop:2,background:"rgba(200,146,42,0.1)",borderRadius:4,padding:"1px 5px"}}>
                         +{((ex.weight-barbellW)/2).toFixed(2).replace(/\.?0+$/,"")} ea side
                       </div>
                     )}
                   </div>
-                  <div style={{display:"flex",flexDirection:"column",gap:4}}>
-                    <button style={s.setBtn} onClick={()=>adjustWeightGlobal(ex.id,bigInc)}>+{bigInc}</button>
-                    <button style={{...s.setBtn,fontSize:14,height:32}} onClick={()=>adjustWeightGlobal(ex.id,0.25)}>+.25</button>
+                  <div style={{display:"flex",flexDirection:"column",gap:3}}>
+                    <button style={{...s.setBtn,height:40}} onClick={()=>adjustWeightGlobal(ex.id,bigInc)}>+{bigInc}</button>
+                    <button style={{...s.setBtn,fontSize:12,height:28}} onClick={()=>adjustWeightGlobal(ex.id,0.25)}>+.25</button>
                   </div>
                 </div>
-                <div style={{fontFamily:"'DM Mono',monospace",fontSize:8,color:"var(--muted)",letterSpacing:2,textAlign:"center",marginBottom:14,textTransform:"uppercase"}}>
-                  Global weight (won't change completed sets)
+                <div style={{fontFamily:"'DM Mono',monospace",fontSize:8,color:"var(--muted)",letterSpacing:2,textAlign:"center",marginBottom:10,textTransform:"uppercase"}}>
+                  Base weight · won't change completed sets
                 </div>
 
-                <span style={{...s.label,marginBottom:10}}>Sets — tap to complete</span>
-                <div style={{display:"flex",flexDirection:"column",gap:8,marginBottom:14}}>
+                <span style={{...s.label,marginBottom:8,fontSize:9}}>Sets — tap to complete</span>
+                <div style={{display:"flex",flexDirection:"column",gap:6,marginBottom:10}}>
                   {done.map((d,i)=>{
                     const setKey=`${ex.id}_${i}`;
                     const setWeight=perSetData[setKey]?.weight ?? ex.weight;
                     const setReps=perSetData[setKey]?.reps ?? setRepsArr[i];
                     const perSideWeight=isBarbell&&setWeight>barbellW?((setWeight-barbellW)/2):null;
                     return(
-                      <div key={i} style={{display:"flex",alignItems:"center",gap:8,padding:"8px 10px",borderRadius:8,background:d?"rgba(200,146,42,0.12)":"var(--surface2)",border:d?"1px solid rgba(200,146,42,0.35)":"1px solid var(--border)"}}>
-                        <button style={{...s.setDot(d),flexShrink:0,width:36,height:36,fontSize:12}} onClick={()=>toggleSet(ex.id,i)}>{d?"✓":`S${i+1}`}</button>
+                      <div key={i} style={{display:"flex",alignItems:"center",gap:6,padding:"6px 8px",borderRadius:8,background:d?"rgba(200,146,42,0.12)":"var(--surface2)",border:d?"1px solid rgba(200,146,42,0.35)":"1px solid var(--border)"}}>
+                        <button style={{...s.setDot(d),flexShrink:0,width:34,height:34,fontSize:11}} onClick={()=>toggleSet(ex.id,i)}>{d?"✓":`S${i+1}`}</button>
                         <div style={{display:"flex",flexDirection:"column",flex:1,minWidth:0}}>
-                          <div style={{display:"flex",alignItems:"center",gap:4}}>
-                            <button onClick={()=>adjustSetWeight(ex.id,i,-bigInc)} style={{background:"var(--surface)",border:"1px solid var(--border2)",borderRadius:4,width:26,height:26,color:"var(--gold)",cursor:"pointer",fontSize:12,flexShrink:0}}>−</button>
-                            <div style={{textAlign:"center",minWidth:44}}>
-                              <div style={{fontFamily:"'DM Mono',monospace",fontSize:13,color:"var(--gold)",fontWeight:500}}>{setWeight}</div>
-                              <div style={{fontFamily:"'DM Mono',monospace",fontSize:8,color:"var(--muted)"}}>{ex.unit!=="reps"?ex.unit:"bw"}</div>
+                          <div style={{display:"flex",alignItems:"center",gap:3}}>
+                            <button onClick={()=>adjustSetWeight(ex.id,i,-bigInc)} style={{background:"var(--surface)",border:"1px solid var(--border2)",borderRadius:4,width:24,height:24,color:"var(--gold)",cursor:"pointer",fontSize:11,flexShrink:0}}>−</button>
+                            <div style={{textAlign:"center",minWidth:40}}>
+                              <div style={{fontFamily:"'DM Mono',monospace",fontSize:12,color:"var(--gold)",fontWeight:500}}>{setWeight}</div>
+                              <div style={{fontFamily:"'DM Mono',monospace",fontSize:7,color:"var(--muted)"}}>{ex.unit!=="reps"?ex.unit:"bw"}</div>
                             </div>
-                            <button onClick={()=>adjustSetWeight(ex.id,i,bigInc)} style={{background:"var(--surface)",border:"1px solid var(--border2)",borderRadius:4,width:26,height:26,color:"var(--gold)",cursor:"pointer",fontSize:12,flexShrink:0}}>+</button>
-                            <button onClick={()=>adjustSetWeight(ex.id,i,-0.25)} style={{background:"var(--surface)",border:"1px solid var(--border)",borderRadius:3,width:22,height:22,color:"var(--muted)",cursor:"pointer",fontSize:10,flexShrink:0}}>-.25</button>
-                            <button onClick={()=>adjustSetWeight(ex.id,i,0.25)} style={{background:"var(--surface)",border:"1px solid var(--border)",borderRadius:3,width:22,height:22,color:"var(--muted)",cursor:"pointer",fontSize:10,flexShrink:0}}>+.25</button>
+                            <button onClick={()=>adjustSetWeight(ex.id,i,bigInc)} style={{background:"var(--surface)",border:"1px solid var(--border2)",borderRadius:4,width:24,height:24,color:"var(--gold)",cursor:"pointer",fontSize:11,flexShrink:0}}>+</button>
+                            <button onClick={()=>adjustSetWeight(ex.id,i,-0.25)} style={{background:"var(--surface)",border:"1px solid var(--border)",borderRadius:3,width:20,height:20,color:"var(--muted)",cursor:"pointer",fontSize:9,flexShrink:0}}>-.25</button>
+                            <button onClick={()=>adjustSetWeight(ex.id,i,0.25)} style={{background:"var(--surface)",border:"1px solid var(--border)",borderRadius:3,width:20,height:20,color:"var(--muted)",cursor:"pointer",fontSize:9,flexShrink:0}}>+.25</button>
                           </div>
                           {isBarbell&&perSideWeight!==null&&(
-                            <div style={{fontFamily:"'DM Mono',monospace",fontSize:8,color:"var(--gold2)",marginTop:2,paddingLeft:2}}>
+                            <div style={{fontFamily:"'DM Mono',monospace",fontSize:8,color:"var(--gold2)",marginTop:1,paddingLeft:2}}>
                               +{perSideWeight.toFixed(2).replace(/\.?0+$/,"")} lbs/side
                             </div>
                           )}
                         </div>
-                        <div style={{display:"flex",alignItems:"center",gap:4}}>
-                          <button onClick={()=>adjustSetReps(ex.id,i,-1)} style={{background:"var(--surface)",border:"1px solid var(--border2)",borderRadius:4,width:26,height:26,color:"var(--cream2)",cursor:"pointer",fontSize:14,flexShrink:0}}>−</button>
-                          <div style={{textAlign:"center",minWidth:30}}>
-                            <div style={{fontFamily:"'DM Mono',monospace",fontSize:13,color:"var(--cream)",fontWeight:500}}>{setReps}</div>
-                            <div style={{fontFamily:"'DM Mono',monospace",fontSize:8,color:"var(--muted)"}}>reps</div>
+                        <div style={{display:"flex",alignItems:"center",gap:3}}>
+                          <button onClick={()=>adjustSetReps(ex.id,i,-1)} style={{background:"var(--surface)",border:"1px solid var(--border2)",borderRadius:4,width:24,height:24,color:"var(--cream2)",cursor:"pointer",fontSize:13,flexShrink:0}}>−</button>
+                          <div style={{textAlign:"center",minWidth:28}}>
+                            <div style={{fontFamily:"'DM Mono',monospace",fontSize:12,color:"var(--cream)",fontWeight:500}}>{setReps}</div>
+                            <div style={{fontFamily:"'DM Mono',monospace",fontSize:7,color:"var(--muted)"}}>reps</div>
                           </div>
-                          <button onClick={()=>adjustSetReps(ex.id,i,1)} style={{background:"var(--surface)",border:"1px solid var(--border2)",borderRadius:4,width:26,height:26,color:"var(--cream2)",cursor:"pointer",fontSize:14,flexShrink:0}}>+</button>
+                          <button onClick={()=>adjustSetReps(ex.id,i,1)} style={{background:"var(--surface)",border:"1px solid var(--border2)",borderRadius:4,width:24,height:24,color:"var(--cream2)",cursor:"pointer",fontSize:13,flexShrink:0}}>+</button>
                         </div>
                       </div>
                     );
                   })}
                 </div>
-                <input style={{...s.input,fontSize:13,padding:"10px 12px"}} placeholder="Notes..." value={noteFor[ex.id]||""} onChange={e=>setNoteFor(p=>({...p,[ex.id]:e.target.value}))}/>
+                <input style={{...s.input,fontSize:12,padding:"8px 10px"}} placeholder="Notes..." value={noteFor[ex.id]||""} onChange={e=>setNoteFor(p=>({...p,[ex.id]:e.target.value}))}/>
               </div>
               <div style={{display:"grid",gridTemplateColumns:currentExIdx>0?"1fr 1fr":"1fr",gap:10}}>
                 {currentExIdx>0&&(
@@ -1600,6 +1767,75 @@
                 )}
               </div>
             </div>
+
+            {/* ── SWAP EXERCISE MODAL ── */}
+            {swapModal&&(
+              <div onClick={()=>setSwapModal(null)} style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.85)",zIndex:600,display:"flex",alignItems:"flex-end",justifyContent:"center"}}>
+                <div onClick={e=>e.stopPropagation()} style={{background:"#2a1c0c",border:"1px solid var(--border2)",borderRadius:"16px 16px 0 0",width:"100%",maxWidth:480,maxHeight:"80vh",overflowY:"auto",padding:20,paddingBottom:40}}>
+                  <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:14}}>
+                    <span style={{fontFamily:"'DM Mono',monospace",fontSize:11,letterSpacing:3,color:"var(--gold)",textTransform:"uppercase"}}>Swap Exercise</span>
+                    <button onClick={()=>setSwapModal(null)} style={{background:"none",border:"none",color:"var(--muted)",cursor:"pointer",fontSize:22}}>×</button>
+                  </div>
+                  {(()=>{
+                    const currEx=allExercises.find(e=>e.id===swapModal);
+                    const category=currEx?.category;
+                    const sameGroup=allExercises.filter(e=>e.category===category&&e.id!==swapModal);
+                    return(
+                      <div>
+                        <div style={{fontFamily:"'DM Mono',monospace",fontSize:9,color:"var(--muted)",letterSpacing:2,marginBottom:10,textTransform:"uppercase"}}>{category} exercises</div>
+                        {sameGroup.map(ex=>{
+                          const alreadyIn=activeWorkout.exercises.some(e=>e.id===ex.id);
+                          return(
+                            <button key={ex.id} disabled={alreadyIn} onClick={()=>swapExercise(swapModal,ex.id)} style={{display:"flex",justifyContent:"space-between",alignItems:"center",width:"100%",background:alreadyIn?"var(--surface)":"var(--surface2)",border:"1px solid var(--border)",borderRadius:8,padding:"12px 14px",marginBottom:6,cursor:alreadyIn?"default":"pointer",opacity:alreadyIn?0.4:1,textAlign:"left"}}>
+                              <div>
+                                <div style={{fontSize:14,color:"var(--cream)",fontWeight:500}}>{ex.name}</div>
+                                <div style={{fontFamily:"'DM Mono',monospace",fontSize:9,color:"var(--muted)",marginTop:2,letterSpacing:1}}>{ex.equipmentType||"machine"}</div>
+                              </div>
+                              {alreadyIn&&<span style={{fontFamily:"'DM Mono',monospace",fontSize:9,color:"var(--muted)"}}>In workout</span>}
+                            </button>
+                          );
+                        })}
+                        {sameGroup.length===0&&<div style={{color:"var(--muted)",fontFamily:"'DM Mono',monospace",fontSize:12,textAlign:"center",padding:20}}>No other {category} exercises available</div>}
+                      </div>
+                    );
+                  })()}
+                </div>
+              </div>
+            )}
+
+            {/* ── EQUIPMENT EDIT MODAL ── */}
+            {equipModal&&(
+              <div onClick={()=>setEquipModal(null)} style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.85)",zIndex:600,display:"flex",alignItems:"flex-end",justifyContent:"center"}}>
+                <div onClick={e=>e.stopPropagation()} style={{background:"#2a1c0c",border:"1px solid var(--border2)",borderRadius:"16px 16px 0 0",width:"100%",maxWidth:480,padding:20,paddingBottom:40}}>
+                  <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:14}}>
+                    <span style={{fontFamily:"'DM Mono',monospace",fontSize:11,letterSpacing:3,color:"var(--gold)",textTransform:"uppercase"}}>Equipment Type</span>
+                    <button onClick={()=>setEquipModal(null)} style={{background:"none",border:"none",color:"var(--muted)",cursor:"pointer",fontSize:22}}>×</button>
+                  </div>
+                  <div style={{display:"flex",gap:6,flexWrap:"wrap",marginBottom:16}}>
+                    {[["barbell","🏋️ Barbell"],["dumbbell","💪 Dumbbell"],["cable","🔗 Cable"],["assisted","🤝 Assisted"],["machine","⚙️ Machine"],["bodyweight","🧍 BW"]].map(([key,lbl])=>(
+                      <button key={key} onClick={()=>setDraftEquip(p=>({...p,equipmentType:key}))} style={{padding:"8px 12px",borderRadius:6,fontSize:12,fontFamily:"'DM Mono',monospace",cursor:"pointer",background:draftEquip.equipmentType===key?"rgba(200,146,42,0.18)":"var(--surface2)",border:draftEquip.equipmentType===key?"1px solid rgba(200,146,42,0.5)":"1px solid var(--border)",color:draftEquip.equipmentType===key?"var(--gold)":"var(--muted)"}}>
+                        {lbl}
+                      </button>
+                    ))}
+                  </div>
+                  {draftEquip.equipmentType==="barbell"&&(
+                    <div style={{marginBottom:16}}>
+                      <span style={{fontFamily:"'DM Mono',monospace",fontSize:9,letterSpacing:3,color:"var(--muted)",textTransform:"uppercase",display:"block",marginBottom:6}}>Bar Weight (lbs)</span>
+                      <input style={{...s.input,maxWidth:160}} type="number" value={draftEquip.barbellWeight||45} onChange={e=>setDraftEquip(p=>({...p,barbellWeight:Number(e.target.value)||45}))}/>
+                    </div>
+                  )}
+                  <div style={{fontFamily:"'DM Mono',monospace",fontSize:9,color:"var(--muted)",marginBottom:14,letterSpacing:0.5,lineHeight:1.6}}>
+                    {draftEquip.equipmentType==="barbell"&&`Bar: ${draftEquip.barbellWeight||45} lbs · increment will change to 2.5 lbs`}
+                    {draftEquip.equipmentType==="dumbbell"&&"Increment will change to 5 lbs"}
+                    {draftEquip.equipmentType==="cable"&&"Increment will change to 5 lbs"}
+                    {draftEquip.equipmentType==="assisted"&&"Weight progression will reverse (less assistance = harder)"}
+                    {draftEquip.equipmentType==="machine"&&"Increment unchanged"}
+                    {draftEquip.equipmentType==="bodyweight"&&"No weight tracking"}
+                  </div>
+                  <button onClick={()=>applyEquipChange(equipModal)} style={{background:"var(--gold)",border:"none",borderRadius:8,padding:"13px",color:"var(--bg)",fontFamily:"'DM Mono',monospace",fontSize:12,letterSpacing:2,cursor:"pointer",width:"100%",textTransform:"uppercase",fontWeight:600}}>Apply</button>
+                </div>
+              </div>
+            )}
           </div>
         );
       }
