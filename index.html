@@ -1618,7 +1618,10 @@
             <div style={{...s.content,...s.contentPt}}>
               <div style={s.header}>
                 <div style={s.logo}>IRONFORM</div>
-                <button style={s.btnDanger} onClick={cancelWorkout}>Cancel</button>
+                <div style={{display:"flex",gap:6}}>
+                  <button onClick={()=>{resumeAudioCtx();playAlertTone("soft");}} style={{background:"var(--surface2)",border:"1px solid var(--border)",borderRadius:6,padding:"6px 10px",color:"var(--muted)",cursor:"pointer",fontFamily:"'DM Mono',monospace",fontSize:9,letterSpacing:1}}>TEST🔔</button>
+                  <button style={s.btnDanger} onClick={cancelWorkout}>Cancel</button>
+                </div>
               </div>
               <div style={{marginBottom:18}}>
                 <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:6}}>
