@@ -338,44 +338,51 @@
 
 
     // ── AUDIO + HAPTIC ALERTS ─────────────────────────────────────
+    // Shared AudioContext — created once, reused for all tones.
+    // Must be resumed from a user gesture before it will produce sound.
+    let _audioCtx = null;
+    function getAudioCtx() {
+      if (!_audioCtx) {
+        _audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+      }
+      // iOS / Chrome suspend the context until a gesture unlocks it.
+      // resumeAudioCtx() is called on every user tap so it's ready by the time the timer fires.
+      return _audioCtx;
+    }
+    function resumeAudioCtx() {
+      try {
+        const ctx = getAudioCtx();
+        if (ctx.state === "suspended") ctx.resume();
+      } catch(e) {}
+    }
+
     function playAlertTone(type) {
       try {
-        const ctx = new (window.AudioContext || window.webkitAudioContext)();
-        const osc = ctx.createOscillator();
-        const gain = ctx.createGain();
-        osc.connect(gain);
-        gain.connect(ctx.destination);
+        const ctx = getAudioCtx();
+        if (ctx.state === "suspended") ctx.resume(); // best-effort in case it lapsed
+        const now = ctx.currentTime;
+        function beep(freq, startOffset, duration, volume) {
+          const o = ctx.createOscillator();
+          const g = ctx.createGain();
+          o.connect(g); g.connect(ctx.destination);
+          o.frequency.setValueAtTime(freq, now + startOffset);
+          g.gain.setValueAtTime(volume, now + startOffset);
+          g.gain.exponentialRampToValueAtTime(0.001, now + startOffset + duration);
+          o.start(now + startOffset);
+          o.stop(now + startOffset + duration);
+        }
         if (type === "soft") {
           // 30s warning: two soft mid-tone beeps
-          osc.frequency.setValueAtTime(660, ctx.currentTime);
-          gain.gain.setValueAtTime(0.25, ctx.currentTime);
-          gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.25);
-          osc.start(ctx.currentTime);
-          osc.stop(ctx.currentTime + 0.25);
-          // second beep
-          const osc2 = ctx.createOscillator();
-          const gain2 = ctx.createGain();
-          osc2.connect(gain2); gain2.connect(ctx.destination);
-          osc2.frequency.setValueAtTime(660, ctx.currentTime + 0.35);
-          gain2.gain.setValueAtTime(0.25, ctx.currentTime + 0.35);
-          gain2.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.60);
-          osc2.start(ctx.currentTime + 0.35);
-          osc2.stop(ctx.currentTime + 0.60);
+          beep(660, 0,    0.22, 0.25);
+          beep(660, 0.32, 0.22, 0.25);
         } else {
-          // end tone: three sharper ascending beeps
-          [0, 0.22, 0.44].forEach((offset, i) => {
-            const o = ctx.createOscillator();
-            const g = ctx.createGain();
-            o.connect(g); g.connect(ctx.destination);
-            o.frequency.setValueAtTime(520 + i * 120, ctx.currentTime + offset);
-            g.gain.setValueAtTime(0.4, ctx.currentTime + offset);
-            g.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + offset + 0.2);
-            o.start(ctx.currentTime + offset);
-            o.stop(ctx.currentTime + offset + 0.2);
-          });
+          // End tone: three ascending beeps, getting sharper
+          beep(520, 0,    0.18, 0.4);
+          beep(640, 0.22, 0.18, 0.4);
+          beep(780, 0.44, 0.22, 0.5);
         }
-      } catch(e) { /* audio not available */ }
-      // Haptic
+      } catch(e) { console.warn("Audio error:", e); }
+      // Haptic — works independently of audio
       try {
         if (navigator.vibrate) {
           navigator.vibrate(type === "soft" ? [100, 80, 100] : [200, 100, 200, 100, 200]);
@@ -817,6 +824,7 @@
 
       // ── REST TIMER ────────────────────────────────────────────
       const startRestTimer=()=>{
+        resumeAudioCtx(); // unlock audio context from user gesture chain
         clearInterval(restIntervalRef.current);
         setRestTimer(60);
         restIntervalRef.current=setInterval(()=>{
@@ -839,6 +847,7 @@
           const wasCompleted=!!p[key];
           const newState={...p,[key]:!wasCompleted};
           if(!wasCompleted){
+            resumeAudioCtx(); // keep context warm on every set tap
             const allSets=activeWorkout.exercises.flatMap(ex=>
               Array.from({length:ex.sets},(_,si)=>({exId:ex.id,setIdx:si,key:`${ex.id}_${si}`}))
             );
