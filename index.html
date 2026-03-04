@@ -77,18 +77,18 @@
     const { useState, useEffect, useRef, useCallback } = React;
 
     // ── VERSION INFO ──────────────────────────────────────────────
-    const APP_VERSION = "2.4.1";
+    const APP_VERSION = "2.4.2";
     const RELEASE_HISTORY = [
       {
-        version: "2.4.0",
+        version: "2.4.2",
         date: "2026-03-04",
         features: [
-          "Alert tone + haptic buzz when rest timer hits 30s (soft) and 0s (sharp)",
           "Equipment type and barbell weight displayed on exercise card during workout",
           "Auto-advance to next exercise after last set of current exercise (no timer between exercises)",
           "Set a lift goal on any exercise during a workout without leaving the screen",
           "Swap exercise mid-workout — pick any exercise from the same muscle group",
           "Change equipment type mid-workout, with live barbell weight editor",
+          "Attempted: rest timer alert tone + haptic — not achievable on iOS Safari (removed)",
         ],
       },
       {
@@ -338,76 +338,6 @@
 
 
     // ── AUDIO + HAPTIC ALERTS ─────────────────────────────────────
-    // ── AUDIO ALERTS ─────────────────────────────────────────────
-    // iOS Safari requires AudioContext to be created AND sound scheduled
-    // in the same synchronous user-gesture call stack. We cannot play tones
-    // from setInterval. Instead we pre-schedule tones at workout start and
-    // use a silent unlocking tap to arm the context.
-    //
-    // Strategy:
-    //   1. On first user tap in the workout, create + unlock the AudioContext
-    //      and schedule a silent buffer (0.001s) to fully activate it on iOS.
-    //   2. playAlertTone() creates a fresh context each call — iOS allows this
-    //      as long as it happens within a gesture OR the context was previously
-    //      unlocked in this page session.
-    //   3. navigator.vibrate is NOT supported on iOS Safari — omitted.
-
-    let _sharedAudioCtx = null;
-
-    function unlockAudio() {
-      // Call this from any user tap to prime audio for the session.
-      try {
-        if (!_sharedAudioCtx) {
-          _sharedAudioCtx = new (window.AudioContext || window.webkitAudioContext)();
-        }
-        if (_sharedAudioCtx.state === "suspended") {
-          _sharedAudioCtx.resume();
-        }
-        // Play a silent buffer — required by iOS to fully unlock the context
-        const buf = _sharedAudioCtx.createBuffer(1, 1, 22050);
-        const src = _sharedAudioCtx.createBufferSource();
-        src.buffer = buf;
-        src.connect(_sharedAudioCtx.destination);
-        src.start(0);
-      } catch(e) {}
-    }
-
-    function resumeAudioCtx() { unlockAudio(); } // alias used elsewhere
-
-    function playAlertTone(type) {
-      try {
-        // Use the shared context if available and running, else create new
-        let ctx = _sharedAudioCtx;
-        if (!ctx || ctx.state === "closed") {
-          ctx = new (window.AudioContext || window.webkitAudioContext)();
-          _sharedAudioCtx = ctx;
-        }
-        if (ctx.state === "suspended") ctx.resume();
-        const now = ctx.currentTime;
-
-        function beep(freq, startOffset, duration, volume) {
-          const o = ctx.createOscillator();
-          const g = ctx.createGain();
-          o.connect(g);
-          g.connect(ctx.destination);
-          o.frequency.setValueAtTime(freq, now + startOffset);
-          g.gain.setValueAtTime(volume, now + startOffset);
-          g.gain.exponentialRampToValueAtTime(0.001, now + startOffset + duration);
-          o.start(now + startOffset);
-          o.stop(now + startOffset + duration + 0.05);
-        }
-
-        if (type === "soft") {
-          beep(660, 0,    0.22, 0.3);
-          beep(660, 0.32, 0.22, 0.3);
-        } else {
-          beep(520, 0,    0.20, 0.45);
-          beep(660, 0.25, 0.20, 0.45);
-          beep(800, 0.50, 0.25, 0.55);
-        }
-      } catch(e) { console.warn("playAlertTone error:", e); }
-    }
-
     // Confetti component
     function Confetti() {
       const canvasRef=useRef(null);
@@ -842,34 +772,6 @@
 
       // ── REST TIMER ────────────────────────────────────────────
       const startRestTimer=()=>{
-        // Unlock + prime AudioContext from within the user gesture call stack.
-        // Then pre-schedule both tones on the AudioContext clock so iOS will
-        // play them without needing another gesture when the interval fires.
-        unlockAudio();
-        try {
-          const ctx = _sharedAudioCtx;
-          if (ctx && ctx.state !== "closed") {
-            const now = ctx.currentTime;
-            function schedBeep(freq, offset, duration, volume) {
-              const o = ctx.createOscillator();
-              const g = ctx.createGain();
-              o.connect(g); g.connect(ctx.destination);
-              o.frequency.setValueAtTime(freq, now + offset);
-              g.gain.setValueAtTime(volume, now + offset);
-              g.gain.exponentialRampToValueAtTime(0.001, now + offset + duration);
-              o.start(now + offset);
-              o.stop(now + offset + duration + 0.05);
-            }
-            // 30s warning tone (fires at t+30s)
-            schedBeep(660, 30,     0.22, 0.3);
-            schedBeep(660, 30.32,  0.22, 0.3);
-            // End tone (fires at t+60s)
-            schedBeep(520, 60,     0.20, 0.45);
-            schedBeep(660, 60.25,  0.20, 0.45);
-            schedBeep(800, 60.50,  0.25, 0.55);
-          }
-        } catch(e) { console.warn("schedBeep error:", e); }
-
         clearInterval(restIntervalRef.current);
         setRestTimer(60);
         restIntervalRef.current=setInterval(()=>{
@@ -887,7 +789,6 @@
           const wasCompleted=!!p[key];
           const newState={...p,[key]:!wasCompleted};
           if(!wasCompleted){
-            resumeAudioCtx(); // keep context warm on every set tap
             const allSets=activeWorkout.exercises.flatMap(ex=>
               Array.from({length:ex.sets},(_,si)=>({exId:ex.id,setIdx:si,key:`${ex.id}_${si}`}))
             );
@@ -1658,10 +1559,7 @@
             <div style={{...s.content,...s.contentPt}}>
               <div style={s.header}>
                 <div style={s.logo}>IRONFORM</div>
-                <div style={{display:"flex",gap:6}}>
-                  <button onClick={()=>{unlockAudio();playAlertTone("end");}} style={{background:"var(--surface2)",border:"1px solid var(--border)",borderRadius:6,padding:"6px 10px",color:"var(--muted)",cursor:"pointer",fontFamily:"'DM Mono',monospace",fontSize:9,letterSpacing:1}}>TEST🔔</button>
-                  <button style={s.btnDanger} onClick={cancelWorkout}>Cancel</button>
-                </div>
+                <button style={s.btnDanger} onClick={cancelWorkout}>Cancel</button>
               </div>
               <div style={{marginBottom:18}}>
                 <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:6}}>
