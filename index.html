@@ -77,8 +77,33 @@
     const { useState, useEffect, useRef, useCallback } = React;
 
     // ── VERSION INFO ──────────────────────────────────────────────
-    const APP_VERSION = "2.6.1";
+    const APP_VERSION = "2.7.0";
     const RELEASE_HISTORY = [
+      {
+        version: "2.7.0",
+        date: "2026-03-12",
+        features: [
+          "New: Delete workout — expand any workout in History to find the 🗑 Delete button with a two-step confirm",
+          "New: Exercise name is now editable in the Edit Workout modal (in addition to the existing inline pencil-icon edit)",
+          "New: Exercise Database screen (accessible from Profile) — view all built-in and custom exercises grouped by category, edit any characteristic (name, default weight, increment, equipment type, unit). Built-in overrides save to your profile. Custom exercises can be deleted from here.",
+        ],
+      },
+      {
+        version: "2.6.3",
+        date: "2026-03-12",
+        features: [
+          "Fixed: Finish Early and Finish buttons now always appear correctly — isLast now accounts for deferred queue, not just index position",
+          "Fixed: 'Come back later' now skips past other deferred exercises when advancing, so you don't land on an already-deferred exercise",
+          "Renamed 'Next →' to 'Skip →'",
+        ],
+      },
+      {
+        version: "2.6.2",
+        date: "2026-03-12",
+        features: [
+          "Fixed: Recovery and Building intensity modes now correctly reduce weight below last-session levels for bench, squat, lat pulldown and all other exercises with stored 1RMs — root cause was a defaultWeight floor overriding the percentage calculation",
+        ],
+      },
       {
         version: "2.6.1",
         date: "2026-03-12",
@@ -218,7 +243,8 @@
     const fbDelLiftGoal   = async (uid,id) => db.collection("users").doc(uid).collection("liftGoals").doc(id).delete();
     const fbGet1RMs       = async (uid) => { const d=await db.collection("users").doc(uid).collection("oneRepMaxes").get(); return d.docs.map(x=>({...x.data(),_id:x.id})); };
     const fbSet1RM        = async (uid,exId,weight) => db.collection("users").doc(uid).collection("oneRepMaxes").doc(exId).set({exId,weight,updatedAt:new Date().toISOString()},{merge:true});
-    const fbDel1RM        = async (uid,exId) => db.collection("users").doc(uid).collection("oneRepMaxes").doc(exId).delete();
+    const fbDeleteWorkout = async (uid,id) => db.collection("users").doc(uid).collection("workouts").doc(id).delete();
+    const fbDeleteCustomEx = async (uid,fid) => db.collection("users").doc(uid).collection("customExercises").doc(fid).delete();
 
     // ── DATA ──────────────────────────────────────────────────────
     const BUILTIN_EXERCISES = [
@@ -657,8 +683,17 @@
       const [calSelectedDate,   setCalSelectedDate]   = useState(null);
       const [calYear,           setCalYear]           = useState(new Date().getFullYear());
       const [calMonth,          setCalMonth]          = useState(new Date().getMonth());
+      const [deleteWorkoutConfirm, setDeleteWorkoutConfirm] = useState(null); // wKey of workout pending delete
 
-      const allExercises = [...BUILTIN_EXERCISES, ...customExs];
+      // Exercise database screen
+      const [editingExDef,      setEditingExDef]      = useState(null); // {ex, isBuiltin} being edited
+      const [draftExDef,        setDraftExDef]        = useState({});   // draft fields
+      const [builtinOverrides,  setBuiltinOverrides]  = useState({});   // {exId: {name, defaultWeight, ...}}
+
+      const allExercises = [
+        ...BUILTIN_EXERCISES.map(ex=>builtinOverrides[ex.id]?{...ex,...builtinOverrides[ex.id]}:ex),
+        ...customExs
+      ];
 
       // ── AUTH ──────────────────────────────────────────────────
       useEffect(()=>{
@@ -673,7 +708,10 @@
         setDataLoading(true);
         try {
           const [prof,wkts,cexs,lgs,orms]=await Promise.all([fbGetProfile(uid),fbGetWorkouts(uid),fbGetCustomExs(uid),fbGetLiftGoals(uid),fbGet1RMs(uid)]);
-          if(prof) setProfileS(prof);
+          if(prof) {
+            setProfileS(prof);
+            if(prof.builtinExOverrides) setBuiltinOverrides(prof.builtinExOverrides);
+          }
           setWorkouts(wkts);setCustomExs(cexs);setLiftGoals(lgs);setOneRepMaxes(orms||[]);
         } catch(e){console.error(e);}
         setDataLoading(false);
@@ -703,6 +741,9 @@
       const saveProfile = async(p)=>{setProfileS(p);if(authUser)await fbSetProfile(authUser.uid,p);};
       const addWorkoutRecord = async(w)=>{if(authUser){const id=await fbAddWorkout(authUser.uid,w);w={...w,_id:id};}setWorkouts(prev=>[...prev,w].sort((a,b)=>new Date(a.date)-new Date(b.date)));};
       const updateWorkoutRecord = async(w)=>{if(authUser&&w._id)await fbUpdateWorkout(authUser.uid,w._id,w);setWorkouts(prev=>prev.map(x=>x._id===w._id?w:x));};
+      const deleteWorkoutRecord = async(w)=>{if(authUser&&w._id)await fbDeleteWorkout(authUser.uid,w._id);setWorkouts(prev=>prev.filter(x=>x._id!==w._id&&x.date!==w.date));};
+      const deleteCustomExRecord = async(ex)=>{if(authUser&&ex._fid)await fbDeleteCustomEx(authUser.uid,ex._fid);setCustomExs(prev=>prev.filter(x=>x._fid!==ex._fid));};
+      const updateCustomExRecord = async(ex)=>{if(authUser&&ex._fid)await fbUpdateCustomEx(authUser.uid,ex._fid,ex);setCustomExs(prev=>prev.map(x=>x._fid===ex._fid?ex:x));};
       const doAddCustomEx = async(ex)=>{if(authUser){const fid=await fbAddCustomEx(authUser.uid,ex);ex={...ex,_fid:fid};}setCustomExs(prev=>[...prev,ex]);return ex;};
       const doUpdateCustomEx = async(fid,data)=>{if(authUser&&fid)await fbUpdateCustomEx(authUser.uid,fid,data);setCustomExs(prev=>prev.map(e=>e._fid===fid?{...e,...data}:e));};
       const doAddLiftGoal = async(g)=>{if(authUser){const id=await fbAddLiftGoal(authUser.uid,g);g={...g,_id:id};}setLiftGoals(prev=>[...prev,g]);};
@@ -731,19 +772,19 @@
         return (Date.now()-new Date(last.workout.date))/86400000;
       };
 
-      // ── FIX 1: computeWeightForEx — intensity mode scaling ────
-      // The bug was that `mode.pct` check was correct but `intensityModeKey !== "custom"`
-      // guard meant custom fell through. Also ensured all modes with a pct apply it.
+      // computeWeightForEx — returns target weight for an exercise given intensity mode
       const computeWeightForEx=(exId, def, intensityModeKey)=>{
         const mode=INTENSITY_MODES[intensityModeKey] || INTENSITY_MODES["building"];
         const goal=profile?.goal||"hypertrophy";
 
         // Apply 1RM-based percentage for any mode that has a pct (recovery, building, pushing)
+        // Floor is 5 lbs (safety only) — NOT def.defaultWeight, which is a new-user seed value
+        // and must not override a legitimate percentage-based calculation.
         if(mode && mode.pct !== null && mode.pct !== undefined) {
           const orm=getEffective1RM(oneRepMaxes, workouts, exId);
           if(orm) {
             const scaled=roundToNearest2_5(orm.value * mode.pct);
-            return Math.max(scaled, def.defaultWeight);
+            return Math.max(scaled, 5);
           }
         }
 
@@ -1336,7 +1377,13 @@
               <div style={{maxHeight:"55vh",overflowY:"auto"}}>
                 {ew.exercises.map((ex,ei)=>(
                   <div key={ei} style={{...s.card,padding:12,marginBottom:8}}>
-                    <div style={{fontWeight:600,fontSize:14,color:"var(--cream)",marginBottom:10}}>{ex.name}</div>
+                    <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:6}}>
+                      <div style={{fontWeight:600,fontSize:14,color:"var(--cream)",flex:1,minWidth:0}}>
+                        <span style={{...s.label,fontSize:9,display:"block",marginBottom:2}}>Exercise Name</span>
+                        <input style={{...s.input,padding:"7px 10px",fontSize:13,width:"100%"}} value={ex.name}
+                          onChange={e=>{const v=e.target.value;setEditingWorkout(prev=>({...prev,exercises:prev.exercises.map((x,xi)=>xi===ei?{...x,name:v}:x)}));}}/>
+                      </div>
+                    </div>
                     {(ex.setData&&ex.setData.length>0)?(
                       <div>
                         <span style={{...s.label,fontSize:9,marginBottom:6}}>Sets</span>
@@ -1612,7 +1659,14 @@
         const ex=exercises[currentExIdx];
         const done=setsForEx(ex);
         const allDone=done.every(Boolean);
-        const isLast=currentExIdx===exercises.length-1;
+        // isLast: true when there are no more exercises to visit after this one.
+        // After "Come back later", you may be at a lower index but still be on the
+        // final exercise in the queue — so we can't rely on index position alone.
+        // An exercise is "next up" if it's after currentExIdx AND not deferred,
+        // OR it's deferred but not the current exercise.
+        const remainingDeferred=deferredExIds.filter(id=>id!==ex.id);
+        const hasMoreAhead=exercises.slice(currentExIdx+1).some(e=>!deferredExIds.includes(e.id));
+        const isLast=!hasMoreAhead && remainingDeferred.length===0;
         const progress=totalSets>0?totalDone/totalSets:0;
         const setRepsArr=activeWorkout.setRepsMap?.[ex.id]||Array(ex.sets).fill(ex.reps);
         const bigInc=ex.bigIncrement||getBigIncrement(ex);
@@ -1866,106 +1920,65 @@
               </div>
 
               {/* ── NAVIGATION BUTTONS ──
-                  Non-last exercise: [Prev] | [Come back later / Next stacked]
-                  Last exercise (no deferred): [Prev] | [Finish Early / Finish stacked]
-                  Last exercise (deferred exist): [Prev] | [Finish Early / Next→ stacked]
-                  "Come back later" defers current exercise and advances.
-                  On last exercise, "Next →" circles back to first deferred exercise.
+                  Non-last: [Prev] | [Come back later / Skip stacked]
+                  Last (deferred remain): [Prev] | [Finish Early / Next N to revisit stacked]
+                  Last (none deferred): [Prev] | [Finish Early / Finish stacked]
+                  isLast is computed above accounting for deferred queue.
               */}
               {(()=>{
                 const isDeferred = deferredExIds.includes(ex.id);
-                const hasDeferred = deferredExIds.length > 0;
-                // Determine if we're truly at the "end" — last ex AND no deferred remaining
-                // (deferred exercises that appear after currentExIdx in queue are still pending)
-                const deferredPending = deferredExIds.filter(id => {
-                  // Only count deferred that haven't been circled back to yet
-                  return id !== ex.id;
-                });
+                const remainingDeferred = deferredExIds.filter(id=>id!==ex.id);
 
+                // Defer current exercise and move to next undeferred, or first deferred
                 const deferCurrentEx = () => {
-                  if (!isDeferred) {
-                    setDeferredExIds(p => [...p.filter(id=>id!==ex.id), ex.id]);
+                  const newDeferred = isDeferred ? deferredExIds : [...deferredExIds, ex.id];
+                  setDeferredExIds(newDeferred);
+                  // Find next exercise that isn't already deferred (and isn't current)
+                  let nextIdx = -1;
+                  for(let i=currentExIdx+1; i<exercises.length; i++){
+                    if(!newDeferred.includes(exercises[i].id)) { nextIdx=i; break; }
                   }
-                  // Advance: find next non-deferred exercise, or first deferred if all done
-                  const nextIdx = currentExIdx + 1;
-                  if (nextIdx < exercises.length) {
-                    setCurrentExIdx(nextIdx);
-                  } else if (deferredPending.length > 0) {
-                    // Already at end, jump to first deferred
-                    const firstDeferredId = deferredPending[0];
-                    const idx = exercises.findIndex(e => e.id === firstDeferredId);
-                    if (idx >= 0) setCurrentExIdx(idx);
-                  }
+                  if(nextIdx>=0) { setCurrentExIdx(nextIdx); return; }
+                  // All remaining are deferred — nothing to advance to naturally
+                  // (isLast will now be true so finish buttons appear)
                 };
 
+                // Advance to next exercise (Skip — does not defer, just moves forward)
+                const skipToNext = () => {
+                  setCurrentExIdx(i=>i+1);
+                };
+
+                // Pop first deferred from queue and navigate to it
                 const circleBackToDeferred = () => {
-                  // Pop first deferred from queue and navigate to it
-                  const allDeferred = [...deferredExIds];
-                  if (allDeferred.length === 0) return;
-                  const firstDeferredId = allDeferred[0];
-                  const idx = exercises.findIndex(e => e.id === firstDeferredId);
-                  // Remove it from deferred queue (user is now doing it)
-                  setDeferredExIds(p => p.filter(id => id !== firstDeferredId));
-                  if (idx >= 0) setCurrentExIdx(idx);
+                  if(remainingDeferred.length===0) return;
+                  const firstId = remainingDeferred[0];
+                  const idx = exercises.findIndex(e=>e.id===firstId);
+                  setDeferredExIds(p=>p.filter(id=>id!==firstId));
+                  if(idx>=0) setCurrentExIdx(idx);
                 };
 
-                // Shared button styles
                 const btnDefer = {
-                  background:"var(--surface2)",
-                  color:"var(--muted)",
-                  border:"1px solid var(--border)",
-                  borderRadius:8,
-                  padding:"10px 16px",
-                  fontFamily:"'DM Mono',monospace",
-                  fontWeight:500,
-                  fontSize:10,
-                  letterSpacing:1.2,
-                  cursor:"pointer",
-                  width:"100%",
-                  textTransform:"uppercase",
+                  background:"var(--surface2)", color:"var(--muted)",
+                  border:"1px solid var(--border)", borderRadius:8,
+                  padding:"10px 16px", fontFamily:"'DM Mono',monospace",
+                  fontWeight:500, fontSize:10, letterSpacing:1.2,
+                  cursor:"pointer", width:"100%", textTransform:"uppercase",
                 };
                 const btnNext = {
-                  background:"var(--gold)",
-                  color:"var(--bg)",
-                  border:"none",
-                  borderRadius:8,
-                  padding:"10px 16px",
-                  fontFamily:"'DM Mono',monospace",
-                  fontWeight:600,
-                  fontSize:11,
-                  letterSpacing:1.5,
-                  cursor:"pointer",
-                  width:"100%",
-                  textTransform:"uppercase",
+                  background:"var(--gold)", color:"var(--bg)",
+                  border:"none", borderRadius:8,
+                  padding:"10px 16px", fontFamily:"'DM Mono',monospace",
+                  fontWeight:600, fontSize:11, letterSpacing:1.5,
+                  cursor:"pointer", width:"100%", textTransform:"uppercase",
                 };
                 const btnFinishEarly = {
-                  background:"rgba(200,146,42,0.15)",
-                  color:"var(--muted)",
-                  border:"1px solid rgba(200,146,42,0.25)",
-                  borderRadius:8,
-                  padding:"10px 16px",
-                  fontFamily:"'DM Mono',monospace",
-                  fontWeight:500,
-                  fontSize:10,
-                  letterSpacing:1.2,
+                  background:"rgba(200,146,42,0.15)", color:"var(--muted)",
+                  border:"1px solid rgba(200,146,42,0.25)", borderRadius:8,
+                  padding:"10px 16px", fontFamily:"'DM Mono',monospace",
+                  fontWeight:500, fontSize:10, letterSpacing:1.2,
                   cursor:progress>=0.3?"pointer":"default",
-                  width:"100%",
-                  textTransform:"uppercase",
+                  width:"100%", textTransform:"uppercase",
                   opacity:progress>=0.3?1:0.4,
-                };
-                const btnFinish = {
-                  background:"var(--gold)",
-                  color:"var(--bg)",
-                  border:"none",
-                  borderRadius:8,
-                  padding:"10px 16px",
-                  fontFamily:"'DM Mono',monospace",
-                  fontWeight:600,
-                  fontSize:11,
-                  letterSpacing:1.5,
-                  cursor:"pointer",
-                  width:"100%",
-                  textTransform:"uppercase",
                 };
 
                 return (
@@ -1978,36 +1991,36 @@
                     )}
 
                     {!isLast ? (
-                      // Mid-workout: Come back later + Next stacked
+                      // Mid-workout: Come back later (top) + Skip (bottom)
                       <div style={{display:"flex",flexDirection:"column",gap:4}}>
                         <button style={btnDefer} onClick={deferCurrentEx}>
                           ↩ Come back later
                         </button>
-                        <button style={btnNext} onClick={()=>setCurrentExIdx(i=>i+1)}>
-                          Next →
+                        <button style={btnNext} onClick={skipToNext}>
+                          Skip →
                         </button>
                       </div>
                     ) : (
-                      // Last exercise
+                      // Last exercise — show finish options
                       <div style={{display:"flex",flexDirection:"column",gap:4}}>
-                        {/* Top button: Finish Early (always) */}
                         <button
                           style={btnFinishEarly}
                           onClick={progress>=0.3?finishWorkout:undefined}
                         >
-                          {progress>=1 ? "Finish Workout ✓" : `Finish Early (${totalDone}/${totalSets})`}
+                          {progress>=1?"Finish Workout ✓":`Finish Early (${totalDone}/${totalSets})`}
                         </button>
-                        {/* Bottom button: circle back to deferred if any, else finish */}
-                        {hasDeferred ? (
+                        {remainingDeferred.length>0 ? (
+                          // Still have deferred exercises to revisit
                           <button style={btnNext} onClick={circleBackToDeferred}>
-                            Next → ({deferredExIds.length} to revisit)
+                            Next → ({remainingDeferred.length} to revisit)
                           </button>
                         ) : (
+                          // Truly done
                           <button
-                            style={{...btnFinish, background: progress>=0.3?"var(--gold)":"rgba(200,146,42,0.3)", color: progress>=0.3?"var(--bg)":"var(--muted)", cursor: progress>=0.3?"pointer":"default"}}
+                            style={{...btnNext, background:progress>=0.3?"var(--gold)":"rgba(200,146,42,0.3)", color:progress>=0.3?"var(--bg)":"var(--muted)", cursor:progress>=0.3?"pointer":"default"}}
                             onClick={progress>=0.3?finishWorkout:undefined}
                           >
-                            {progress>=1 ? "Done! ✓" : `Finish (${totalDone}/${totalSets})`}
+                            {progress>=1?"Done! ✓":`Finish (${totalDone}/${totalSets})`}
                           </button>
                         )}
                       </div>
@@ -2411,8 +2424,19 @@
                           </div>
                         );
                       })}
-                      <div style={{display:"flex",justifyContent:"flex-end",marginTop:10}}>
-                        <button style={s.btnSm} onClick={()=>{setEditingWorkout(w);setModal("editWorkout");}}>✏ Edit</button>
+                      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginTop:10}}>
+                        {deleteWorkoutConfirm===wKey?(
+                          <div style={{display:"flex",gap:6,alignItems:"center",flex:1}}>
+                            <span style={{fontFamily:"'DM Mono',monospace",fontSize:10,color:"var(--brick2)"}}>Delete this workout?</span>
+                            <button style={{...s.btnSm,background:"var(--brick)",color:"var(--cream)",border:"none"}} onClick={async()=>{await deleteWorkoutRecord(w);setDeleteWorkoutConfirm(null);showToast("Workout deleted");}}>Yes, Delete</button>
+                            <button style={s.btnSm} onClick={()=>setDeleteWorkoutConfirm(null)}>Cancel</button>
+                          </div>
+                        ):(
+                          <>
+                            <button style={{...s.btnSm,background:"none",border:"1px solid var(--brick)",color:"var(--brick2)"}} onClick={()=>setDeleteWorkoutConfirm(wKey)}>🗑 Delete</button>
+                            <button style={s.btnSm} onClick={()=>{setEditingWorkout(w);setModal("editWorkout");}}>✏ Edit</button>
+                          </>
+                        )}
                       </div>
                     </div>
                   )}
@@ -2515,11 +2539,166 @@
               )}
             </div>
 
+            <button style={{...s.btnOutline,width:"100%",marginBottom:10,textAlign:"center"}} onClick={()=>setScreen("exercise_db")}>
+              📋 Exercise Database
+            </button>
             <button style={{...s.btnDanger,width:"100%",marginTop:6}} onClick={handleSignOut}>Sign Out</button>
           </div>
           <NavBar active="profile"/>
         </div>
       );
+
+      // ── EXERCISE DATABASE SCREEN ─────────────────────────────
+      if(screen==="exercise_db"){
+        const isEditingThis=(ex)=>editingExDef&&editingExDef.ex.id===ex.id;
+
+        const startEdit=(ex,isBuiltin)=>{
+          setEditingExDef({ex,isBuiltin});
+          setDraftExDef({
+            name:ex.name,
+            defaultWeight:ex.defaultWeight,
+            increment:ex.increment,
+            equipmentType:ex.equipmentType||"machine",
+            unit:ex.unit||"lbs",
+            barbellWeight:ex.barbellWeight||45,
+          });
+        };
+
+        const saveEdit=async()=>{
+          if(!editingExDef) return;
+          const {ex,isBuiltin}=editingExDef;
+          const updated={...ex,...draftExDef,defaultWeight:Number(draftExDef.defaultWeight)||0,increment:Number(draftExDef.increment)||2.5,barbellWeight:Number(draftExDef.barbellWeight)||45};
+          if(isBuiltin){
+            // Store override in profile
+            const newOverrides={...builtinOverrides,[ex.id]:draftExDef};
+            setBuiltinOverrides(newOverrides);
+            await saveProfile({...profile,builtinExOverrides:newOverrides});
+          } else {
+            await updateCustomExRecord(updated);
+          }
+          setEditingExDef(null);setDraftExDef({});
+          showToast("Exercise updated!");
+        };
+
+        return(
+          <div style={s.app}>
+            {Toast}
+            <div style={{...s.content,...s.contentPt}}>
+              <div style={s.header}>
+                <BackBtn onClick={()=>setScreen("profile")}/>
+                <div style={{fontFamily:"'DM Mono',monospace",fontSize:11,letterSpacing:3,color:"var(--gold)",textTransform:"uppercase"}}>Exercise Database</div>
+                <div style={{width:40}}/>
+              </div>
+              <p style={{fontFamily:"'DM Mono',monospace",fontSize:10,color:"var(--muted)",marginBottom:16,letterSpacing:0.5,lineHeight:1.6}}>
+                Tap any exercise to edit its characteristics. Built-in exercises save overrides to your profile. Custom exercises are fully editable and deletable.
+              </p>
+
+              {CATEGORIES.map(cat=>{
+                const catExs=allExercises.filter(e=>e.category===cat);
+                if(!catExs.length) return null;
+                return(
+                  <div key={cat} style={{marginBottom:18}}>
+                    <span style={s.label}>{cat}</span>
+                    {catExs.map(ex=>{
+                      const isBuiltin=!ex.custom;
+                      const override=isBuiltin?builtinOverrides[ex.id]:null;
+                      const displayEx=override?{...ex,...override}:ex;
+                      const editing=isEditingThis(ex);
+                      return(
+                        <div key={ex.id} style={{...s.card,marginBottom:6,padding:"12px 14px"}}>
+                          {editing?(
+                            <div>
+                              <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:10}}>
+                                <span style={{fontFamily:"'DM Mono',monospace",fontSize:9,color:"var(--gold)",textTransform:"uppercase",letterSpacing:2}}>Editing</span>
+                                <button onClick={()=>setEditingExDef(null)} style={{background:"none",border:"none",color:"var(--muted)",cursor:"pointer",fontSize:18}}>×</button>
+                              </div>
+                              <div style={{display:"flex",flexDirection:"column",gap:10}}>
+                                <div>
+                                  <span style={s.label}>Name</span>
+                                  <input style={s.input} value={draftExDef.name||""} onChange={e=>setDraftExDef(p=>({...p,name:e.target.value}))} autoCapitalize="words"/>
+                                </div>
+                                <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}>
+                                  <div>
+                                    <span style={s.label}>Default Weight ({draftExDef.unit||"lbs"})</span>
+                                    <input style={s.input} type="number" value={draftExDef.defaultWeight||""} onChange={e=>setDraftExDef(p=>({...p,defaultWeight:e.target.value}))}/>
+                                  </div>
+                                  <div>
+                                    <span style={s.label}>Increment</span>
+                                    <input style={s.input} type="number" value={draftExDef.increment||""} onChange={e=>setDraftExDef(p=>({...p,increment:e.target.value}))}/>
+                                  </div>
+                                </div>
+                                <div>
+                                  <span style={s.label}>Unit</span>
+                                  <div style={{display:"flex",gap:6,marginTop:4}}>
+                                    {["lbs","kg","reps"].map(u=>(
+                                      <button key={u} onClick={()=>setDraftExDef(p=>({...p,unit:u}))} style={{flex:1,padding:"8px",borderRadius:6,fontSize:11,fontFamily:"'DM Mono',monospace",cursor:"pointer",background:draftExDef.unit===u?"rgba(200,146,42,0.18)":"var(--surface2)",border:draftExDef.unit===u?"1px solid rgba(200,146,42,0.5)":"1px solid var(--border)",color:draftExDef.unit===u?"var(--gold)":"var(--muted)"}}>{u}</button>
+                                    ))}
+                                  </div>
+                                </div>
+                                <div>
+                                  <span style={s.label}>Equipment Type</span>
+                                  <div style={{display:"flex",gap:5,flexWrap:"wrap",marginTop:4}}>
+                                    {[["barbell","🏋️ Barbell"],["dumbbell","💪 Dumbbell"],["cable","🔗 Cable"],["assisted","🤝 Assisted"],["machine","⚙️ Machine"],["bodyweight","🧍 BW"]].map(([key,lbl])=>(
+                                      <button key={key} onClick={()=>setDraftExDef(p=>({...p,equipmentType:key}))} style={{padding:"7px 10px",borderRadius:6,fontSize:10,fontFamily:"'DM Mono',monospace",cursor:"pointer",background:draftExDef.equipmentType===key?"rgba(200,146,42,0.18)":"var(--surface2)",border:draftExDef.equipmentType===key?"1px solid rgba(200,146,42,0.5)":"1px solid var(--border)",color:draftExDef.equipmentType===key?"var(--gold)":"var(--muted)"}}>{lbl}</button>
+                                    ))}
+                                  </div>
+                                </div>
+                                {(draftExDef.equipmentType==="barbell")&&(
+                                  <div>
+                                    <span style={s.label}>Barbell Weight (lbs)</span>
+                                    <input style={s.input} type="number" value={draftExDef.barbellWeight||""} onChange={e=>setDraftExDef(p=>({...p,barbellWeight:e.target.value}))}/>
+                                  </div>
+                                )}
+                                <div style={{display:"flex",gap:8,marginTop:4}}>
+                                  <button style={{...s.btn,flex:1,margin:0}} onClick={saveEdit}>Save</button>
+                                  {!isBuiltin&&(
+                                    <button style={{...s.btnSm,background:"none",border:"1px solid var(--brick)",color:"var(--brick2)",flexShrink:0,padding:"10px 14px"}}
+                                      onClick={async()=>{await deleteCustomExRecord(ex);setEditingExDef(null);showToast("Exercise deleted");}}>
+                                      🗑 Delete
+                                    </button>
+                                  )}
+                                </div>
+                                {isBuiltin&&override&&(
+                                  <button style={{...s.btnOutline,width:"100%",fontSize:11,textAlign:"center"}} onClick={async()=>{
+                                    const newOverrides={...builtinOverrides};delete newOverrides[ex.id];
+                                    setBuiltinOverrides(newOverrides);
+                                    await saveProfile({...profile,builtinExOverrides:newOverrides});
+                                    setEditingExDef(null);showToast("Reset to default");
+                                  }}>↩ Reset to Default</button>
+                                )}
+                              </div>
+                            </div>
+                          ):(
+                            <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",cursor:"pointer"}} onClick={()=>startEdit(ex,isBuiltin)}>
+                              <div style={{flex:1,minWidth:0}}>
+                                <div style={{display:"flex",alignItems:"center",gap:6}}>
+                                  <span style={{fontSize:14,fontWeight:600,color:"var(--cream)"}}>{displayEx.name}</span>
+                                  {override&&<span style={{fontFamily:"'DM Mono',monospace",fontSize:8,color:"var(--gold2)",background:"rgba(200,146,42,0.1)",border:"1px solid rgba(200,146,42,0.3)",borderRadius:3,padding:"1px 5px"}}>modified</span>}
+                                  {ex.custom&&<span style={{fontFamily:"'DM Mono',monospace",fontSize:8,color:"var(--blue2)",background:"rgba(74,108,140,0.1)",border:"1px solid rgba(74,108,140,0.3)",borderRadius:3,padding:"1px 5px"}}>custom</span>}
+                                </div>
+                                <div style={{fontFamily:"'DM Mono',monospace",fontSize:10,color:"var(--muted)",marginTop:2}}>
+                                  {displayEx.unit==="reps"?"Bodyweight":`${displayEx.defaultWeight}${displayEx.unit}`}
+                                  {" · "}{displayEx.equipmentType||"machine"}
+                                  {" · "}+{displayEx.increment}{displayEx.unit==="reps"?"":displayEx.unit}
+                                </div>
+                              </div>
+                              <span style={{color:"var(--border2)",fontSize:12,fontFamily:"'DM Mono',monospace",flexShrink:0,marginLeft:8}}>✎</span>
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                );
+              })}
+
+              <button style={{...s.btn,marginBottom:20}} onClick={()=>{setNewEx({name:"",category:"Chest",unit:"lbs",defaultWeight:45,increment:5,equipmentType:"machine",barbellWeight:45});setScreen("profile");setModal("addExercise");}}>
+                + Add Custom Exercise
+              </button>
+            </div>
+          </div>
+        );
+      }
 
       // ── HOME SCREEN ─────────────────────────────────────────
       const tiles=[
