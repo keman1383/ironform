@@ -77,8 +77,18 @@
     const { useState, useEffect, useRef, useCallback } = React;
 
     // ── VERSION INFO ──────────────────────────────────────────────
-    const APP_VERSION = "2.6.0";
+    const APP_VERSION = "2.6.1";
     const RELEASE_HISTORY = [
+      {
+        version: "2.6.1",
+        date: "2026-03-12",
+        features: [
+          "Fixed: intensity mode weight scaling now works for exercises with stored 1RMs (bench, squat, lat pulldown) — expired stored 1RMs are now used as last-resort fallback instead of being ignored",
+          "'Skip & Move' renamed to 'Come back later' — defers the exercise and marks it red in the progress bar",
+          "Come back later flow: after reaching the last exercise, 'Next →' circles back through all deferred exercises in order",
+          "Last exercise now shows two stacked buttons: 'Finish Early' (top) and either 'Next → (N to revisit)' or 'Done! ✓' (bottom)",
+        ],
+      },
       {
         version: "2.6.0",
         date: "2026-03-12",
@@ -371,12 +381,17 @@
 
     function getEffective1RM(oneRepMaxes, workoutsArr, exId) {
       const stored=oneRepMaxes.find(r=>r.exId===exId);
+      // Fresh stored value (within 15 days) — highest priority
       if(stored) {
         const daysSince=(Date.now()-new Date(stored.updatedAt))/86400000;
         if(daysSince<=15) return {value:stored.weight,source:"stored"};
       }
+      // Try Epley from workout history
       const calc=calcEpley1RM(workoutsArr, exId);
       if(calc) return {value:calc,source:"calculated"};
+      // Last resort: use expired stored value rather than nothing
+      // This ensures manually-entered 1RMs always drive intensity scaling
+      if(stored) return {value:stored.weight,source:"stored_expired"};
       return null;
     }
 
@@ -595,6 +610,8 @@
       const [noteFor,       setNoteFor]       = useState({});
       const [summaryData,   setSummaryData]   = useState(null);
       const [midWorkoutAddedExIds, setMidWorkoutAddedExIds] = useState([]);
+      // Exercises deferred via "Come back later" — ordered queue, consumed on circle-back
+      const [deferredExIds, setDeferredExIds] = useState([]);
 
       // ── FIX 2: Cancel confirmation state ──────────────────────
       const [cancelConfirm, setCancelConfirm] = useState(false);
@@ -773,7 +790,7 @@
           setRepsMap[ex.id]=buildSetReps(sets,reps,scheme);
         });
         setActiveWorkout({date:new Date().toISOString(),exercises,completed:false,templateLabel:tmpl.label,templateId:tmpl.id,setRepsMap,perExSchemes:perExSchemes||{},intensityMode:iMode||"building"});
-        setCurrentExIdx(0);setCompletedSets({});setPerSetData({});setNoteFor({});setSummaryData(null);setMidWorkoutAddedExIds([]);
+        setCurrentExIdx(0);setCompletedSets({});setPerSetData({});setNoteFor({});setSummaryData(null);setMidWorkoutAddedExIds([]);setDeferredExIds([]);
         setCancelConfirm(false);
         setScreen("workout");
       };
@@ -786,7 +803,7 @@
         const setRepsMap={};
         exercises.forEach(ex=>{ setRepsMap[ex.id]=buildSetReps(sets,reps,"standard"); });
         setActiveWorkout({date:new Date().toISOString(),exercises,completed:false,templateLabel:"Custom",templateId:"custom",setRepsMap,perExSchemes:{},intensityMode});
-        setCurrentExIdx(0);setCompletedSets({});setPerSetData({});setNoteFor({});setSummaryData(null);setMidWorkoutAddedExIds([]);
+        setCurrentExIdx(0);setCompletedSets({});setPerSetData({});setNoteFor({});setSummaryData(null);setMidWorkoutAddedExIds([]);setDeferredExIds([]);
         setCancelConfirm(false);
         setScreen("workout");
       };
@@ -858,6 +875,7 @@
         setRestTimer(null);
         setActiveWorkout(null);setActiveTmpl(null);setExtraExIds([]);setRemovedExIds([]);setExRepSchemes({});setPreviewOrder(null);
         setMidWorkoutAddedExIds([]);
+        setDeferredExIds([]);
         setCancelConfirm(false);
         setScreen("summary");
       };
@@ -872,7 +890,7 @@
       const confirmCancelWorkout=()=>{
         clearInterval(restIntervalRef.current);
         setRestTimer(null);
-        setActiveWorkout(null);setActiveTmpl(null);setExtraExIds([]);setRemovedExIds([]);setExRepSchemes({});setPreviewOrder(null);setMidWorkoutAddedExIds([]);
+        setActiveWorkout(null);setActiveTmpl(null);setExtraExIds([]);setRemovedExIds([]);setExRepSchemes({});setPreviewOrder(null);setMidWorkoutAddedExIds([]);setDeferredExIds([]);
         setCancelConfirm(false);
         setScreen("home");
       };
@@ -1703,8 +1721,14 @@
                   {exercises.map((e,i)=>{
                     const exDone=setsForEx(e).every(Boolean);
                     const isCurrent=i===currentExIdx;
-                    return(<button key={i} onClick={()=>setCurrentExIdx(i)} style={{width:isCurrent?24:8,height:8,borderRadius:4,border:"none",cursor:"pointer",background:isCurrent?"var(--gold)":exDone?"rgba(200,146,42,0.5)":"var(--surface2)",transition:"all 0.2s",padding:0,flexShrink:0}}/>);
+                    const isDeferred=deferredExIds.includes(e.id);
+                    return(<button key={i} onClick={()=>setCurrentExIdx(i)} style={{width:isCurrent?24:8,height:8,borderRadius:4,border:"none",cursor:"pointer",background:isCurrent?"var(--gold)":exDone?"rgba(200,146,42,0.5)":isDeferred?"rgba(196,75,43,0.6)":"var(--surface2)",transition:"all 0.2s",padding:0,flexShrink:0}}/>);
                   })}
+                  {deferredExIds.length>0&&(
+                    <span style={{fontFamily:"'DM Mono',monospace",fontSize:8,color:"var(--brick2)",letterSpacing:1,textTransform:"uppercase",alignSelf:"center",marginLeft:2}}>
+                      {deferredExIds.length} to revisit
+                    </span>
+                  )}
                 </div>
               </div>
 
@@ -1841,73 +1865,156 @@
                 <input style={{...s.input,fontSize:12,padding:"8px 10px"}} placeholder="Notes..." value={noteFor[ex.id]||""} onChange={e=>setNoteFor(p=>({...p,[ex.id]:e.target.value}))}/>
               </div>
 
-              {/* ── FIX 3: Navigation buttons ──
-                  Layout: [Prev] | [Skip and Move / Next stacked]
-                  The stacked pair fills the same column as Prev.
-                  Each stacked button is half the height of Prev,
-                  so their combined height equals Prev's height.
+              {/* ── NAVIGATION BUTTONS ──
+                  Non-last exercise: [Prev] | [Come back later / Next stacked]
+                  Last exercise (no deferred): [Prev] | [Finish Early / Finish stacked]
+                  Last exercise (deferred exist): [Prev] | [Finish Early / Next→ stacked]
+                  "Come back later" defers current exercise and advances.
+                  On last exercise, "Next →" circles back to first deferred exercise.
               */}
-              <div style={{display:"grid",gridTemplateColumns:currentExIdx>0?"1fr 1fr":"1fr",gap:10,alignItems:"stretch"}}>
-                {currentExIdx>0&&(
-                  <button
-                    style={{...s.btnOutline,width:"100%",textAlign:"center",display:"flex",alignItems:"center",justifyContent:"center",margin:0}}
-                    onClick={()=>setCurrentExIdx(i=>i-1)}
-                  >← Prev</button>
-                )}
-                {!isLast ? (
-                  // Two stacked buttons: Skip and Move + Next
-                  <div style={{display:"flex",flexDirection:"column",gap:4}}>
-                    <button
-                      style={{
-                        background:"var(--surface2)",
-                        color:"var(--cream2)",
-                        border:"1px solid var(--border2)",
-                        borderRadius:8,
-                        padding:"10px 16px",
-                        fontFamily:"'DM Mono',monospace",
-                        fontWeight:500,
-                        fontSize:11,
-                        letterSpacing:1.5,
-                        cursor:"pointer",
-                        width:"100%",
-                        textTransform:"uppercase",
-                        flex:1,
-                      }}
-                      onClick={()=>setCurrentExIdx(i=>i+1)}
-                    >Skip &amp; Move →</button>
-                    <button
-                      style={{
-                        background:"var(--gold)",
-                        color:"var(--bg)",
-                        border:"none",
-                        borderRadius:8,
-                        padding:"10px 16px",
-                        fontFamily:"'DM Mono',monospace",
-                        fontWeight:500,
-                        fontSize:11,
-                        letterSpacing:1.5,
-                        cursor:"pointer",
-                        width:"100%",
-                        textTransform:"uppercase",
-                        flex:1,
-                      }}
-                      onClick={()=>setCurrentExIdx(i=>i+1)}
-                    >Next →</button>
+              {(()=>{
+                const isDeferred = deferredExIds.includes(ex.id);
+                const hasDeferred = deferredExIds.length > 0;
+                // Determine if we're truly at the "end" — last ex AND no deferred remaining
+                // (deferred exercises that appear after currentExIdx in queue are still pending)
+                const deferredPending = deferredExIds.filter(id => {
+                  // Only count deferred that haven't been circled back to yet
+                  return id !== ex.id;
+                });
+
+                const deferCurrentEx = () => {
+                  if (!isDeferred) {
+                    setDeferredExIds(p => [...p.filter(id=>id!==ex.id), ex.id]);
+                  }
+                  // Advance: find next non-deferred exercise, or first deferred if all done
+                  const nextIdx = currentExIdx + 1;
+                  if (nextIdx < exercises.length) {
+                    setCurrentExIdx(nextIdx);
+                  } else if (deferredPending.length > 0) {
+                    // Already at end, jump to first deferred
+                    const firstDeferredId = deferredPending[0];
+                    const idx = exercises.findIndex(e => e.id === firstDeferredId);
+                    if (idx >= 0) setCurrentExIdx(idx);
+                  }
+                };
+
+                const circleBackToDeferred = () => {
+                  // Pop first deferred from queue and navigate to it
+                  const allDeferred = [...deferredExIds];
+                  if (allDeferred.length === 0) return;
+                  const firstDeferredId = allDeferred[0];
+                  const idx = exercises.findIndex(e => e.id === firstDeferredId);
+                  // Remove it from deferred queue (user is now doing it)
+                  setDeferredExIds(p => p.filter(id => id !== firstDeferredId));
+                  if (idx >= 0) setCurrentExIdx(idx);
+                };
+
+                // Shared button styles
+                const btnDefer = {
+                  background:"var(--surface2)",
+                  color:"var(--muted)",
+                  border:"1px solid var(--border)",
+                  borderRadius:8,
+                  padding:"10px 16px",
+                  fontFamily:"'DM Mono',monospace",
+                  fontWeight:500,
+                  fontSize:10,
+                  letterSpacing:1.2,
+                  cursor:"pointer",
+                  width:"100%",
+                  textTransform:"uppercase",
+                };
+                const btnNext = {
+                  background:"var(--gold)",
+                  color:"var(--bg)",
+                  border:"none",
+                  borderRadius:8,
+                  padding:"10px 16px",
+                  fontFamily:"'DM Mono',monospace",
+                  fontWeight:600,
+                  fontSize:11,
+                  letterSpacing:1.5,
+                  cursor:"pointer",
+                  width:"100%",
+                  textTransform:"uppercase",
+                };
+                const btnFinishEarly = {
+                  background:"rgba(200,146,42,0.15)",
+                  color:"var(--muted)",
+                  border:"1px solid rgba(200,146,42,0.25)",
+                  borderRadius:8,
+                  padding:"10px 16px",
+                  fontFamily:"'DM Mono',monospace",
+                  fontWeight:500,
+                  fontSize:10,
+                  letterSpacing:1.2,
+                  cursor:progress>=0.3?"pointer":"default",
+                  width:"100%",
+                  textTransform:"uppercase",
+                  opacity:progress>=0.3?1:0.4,
+                };
+                const btnFinish = {
+                  background:"var(--gold)",
+                  color:"var(--bg)",
+                  border:"none",
+                  borderRadius:8,
+                  padding:"10px 16px",
+                  fontFamily:"'DM Mono',monospace",
+                  fontWeight:600,
+                  fontSize:11,
+                  letterSpacing:1.5,
+                  cursor:"pointer",
+                  width:"100%",
+                  textTransform:"uppercase",
+                };
+
+                return (
+                  <div style={{display:"grid",gridTemplateColumns:currentExIdx>0?"1fr 1fr":"1fr",gap:10,alignItems:"stretch"}}>
+                    {currentExIdx>0&&(
+                      <button
+                        style={{...s.btnOutline,width:"100%",textAlign:"center",display:"flex",alignItems:"center",justifyContent:"center",margin:0}}
+                        onClick={()=>setCurrentExIdx(i=>i-1)}
+                      >← Prev</button>
+                    )}
+
+                    {!isLast ? (
+                      // Mid-workout: Come back later + Next stacked
+                      <div style={{display:"flex",flexDirection:"column",gap:4}}>
+                        <button style={btnDefer} onClick={deferCurrentEx}>
+                          ↩ Come back later
+                        </button>
+                        <button style={btnNext} onClick={()=>setCurrentExIdx(i=>i+1)}>
+                          Next →
+                        </button>
+                      </div>
+                    ) : (
+                      // Last exercise
+                      <div style={{display:"flex",flexDirection:"column",gap:4}}>
+                        {/* Top button: Finish Early (always) */}
+                        <button
+                          style={btnFinishEarly}
+                          onClick={progress>=0.3?finishWorkout:undefined}
+                        >
+                          {progress>=1 ? "Finish Workout ✓" : `Finish Early (${totalDone}/${totalSets})`}
+                        </button>
+                        {/* Bottom button: circle back to deferred if any, else finish */}
+                        {hasDeferred ? (
+                          <button style={btnNext} onClick={circleBackToDeferred}>
+                            Next → ({deferredExIds.length} to revisit)
+                          </button>
+                        ) : (
+                          <button
+                            style={{...btnFinish, background: progress>=0.3?"var(--gold)":"rgba(200,146,42,0.3)", color: progress>=0.3?"var(--bg)":"var(--muted)", cursor: progress>=0.3?"pointer":"default"}}
+                            onClick={progress>=0.3?finishWorkout:undefined}
+                          >
+                            {progress>=1 ? "Done! ✓" : `Finish (${totalDone}/${totalSets})`}
+                          </button>
+                        )}
+                      </div>
+                    )}
                   </div>
-                ):(
-                  <button
-                    style={{
-                      ...s.btn,
-                      background:progress>=0.3?"var(--gold)":"rgba(200,146,42,0.3)",
-                      color:progress>=0.3?"var(--bg)":"var(--muted)",
-                      marginTop:0,
-                    }}
-                    onClick={progress>=0.3?finishWorkout:undefined}
-                  >
-                    {progress>=1?"Finish Workout ✓":`Finish Early (${totalDone}/${totalSets})`}
-                  </button>
-                )}
-              </div>
+                );
+              })()}
             </div>
 
             {/* ── SWAP EXERCISE MODAL ── */}
@@ -2125,7 +2232,7 @@
                           return(
                             <span style={{display:"block",marginTop:2}}>
                               Est. 1RM: <span style={{color:"var(--gold2)"}}>{orm.value} {def.unit}</span>
-                              <span style={{fontSize:9,color:"var(--muted)",marginLeft:4}}>({orm.source==="stored"?"entered":"Epley calc"})</span>
+                              <span style={{fontSize:9,color:"var(--muted)",marginLeft:4}}>({orm.source==="stored"||orm.source==="stored_expired"?"entered":"Epley calc"})</span>
                             </span>
                           );
                         })()}
@@ -2386,7 +2493,7 @@
                       <span style={{fontSize:14,color:"var(--cream)",fontWeight:600}}>{name}</span>
                       <div style={{textAlign:"right"}}>
                         {effective?(<div style={{fontFamily:"'DM Mono',monospace",fontSize:13,color:"var(--gold)",fontWeight:600}}>{effective.value} lbs</div>):(<div style={{fontFamily:"'DM Mono',monospace",fontSize:11,color:"var(--muted)"}}>No data yet</div>)}
-                        {effective&&<div style={{fontFamily:"'DM Mono',monospace",fontSize:9,color:"var(--muted)"}}>{effective.source==="stored"?"Entered":"Epley calc"}</div>}
+                        {effective&&<div style={{fontFamily:"'DM Mono',monospace",fontSize:9,color:"var(--muted)"}}>{effective.source==="stored"?"Entered":effective.source==="stored_expired"?"Entered (expired, still used)":"Epley calc"}</div>}
                       </div>
                     </div>
                     {editing1RMs&&(
