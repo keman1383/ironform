@@ -77,8 +77,15 @@
     const { useState, useEffect, useRef, useCallback } = React;
 
     // ── VERSION INFO ──────────────────────────────────────────────
-    const APP_VERSION = "2.7.0";
+    const APP_VERSION = "2.7.1";
     const RELEASE_HISTORY = [
+      {
+        version: "2.7.1",
+        date: "2026-03-12",
+        features: [
+          "Fixed: Skip on the last exercise no longer navigates to a blank screen — it now circles back to any 'Come back later' exercises, or does nothing if there are none (finish buttons are shown instead)",
+        ],
+      },
       {
         version: "2.7.0",
         date: "2026-03-12",
@@ -1943,11 +1950,6 @@
                   // (isLast will now be true so finish buttons appear)
                 };
 
-                // Advance to next exercise (Skip — does not defer, just moves forward)
-                const skipToNext = () => {
-                  setCurrentExIdx(i=>i+1);
-                };
-
                 // Pop first deferred from queue and navigate to it
                 const circleBackToDeferred = () => {
                   if(remainingDeferred.length===0) return;
@@ -1955,6 +1957,18 @@
                   const idx = exercises.findIndex(e=>e.id===firstId);
                   setDeferredExIds(p=>p.filter(id=>id!==firstId));
                   if(idx>=0) setCurrentExIdx(idx);
+                };
+
+                // Advance to next exercise (Skip — does not defer, just moves forward)
+                // If at the physical last index, circle back to deferred or finish
+                const skipToNext = () => {
+                  const nextIdx = currentExIdx + 1;
+                  if(nextIdx < exercises.length) {
+                    setCurrentExIdx(nextIdx);
+                  } else if(remainingDeferred.length > 0) {
+                    circleBackToDeferred();
+                  }
+                  // else: isLast is true, this button shouldn't be visible — safety no-op
                 };
 
                 const btnDefer = {
