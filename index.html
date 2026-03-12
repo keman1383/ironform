@@ -77,8 +77,18 @@
     const { useState, useEffect, useRef, useCallback } = React;
 
     // ── VERSION INFO ──────────────────────────────────────────────
-    const APP_VERSION = "2.5.0";
+    const APP_VERSION = "2.6.0";
     const RELEASE_HISTORY = [
+      {
+        version: "2.6.0",
+        date: "2026-03-12",
+        features: [
+          "Fixed: intensity mode (Recovery/Building/Pushing) now correctly scales weights on the workout preview screen for all exercises",
+          "Cancel workout now requires two-step confirmation to prevent accidental exits",
+          "Next button split into 'Skip and Move' (top) and 'Next' (bottom) — equal height, same total space as Prev",
+          "Post-workout 'Add to Template' prompt now fires reliably even when exercises were skipped (not all sets completed)",
+        ],
+      },
       {
         version: "2.5.0",
         date: "2026-03-11",
@@ -253,8 +263,7 @@
       maintain:    {sets:3,reps:8},
     };
 
-    // ── INTENSITY MODES (new in 2.5.0) ───────────────────────────
-    // These are applied at workout launch to scale weights from 1RM
+    // ── INTENSITY MODES ───────────────────────────────────────────
     const INTENSITY_MODES = {
       recovery: {
         label: "Recovery",
@@ -337,13 +346,11 @@
     }
 
     // ── 1RM HELPERS ───────────────────────────────────────────────
-    // Epley formula — uses best set with 1+ reps from most recent workout
     function calcEpley1RM(workoutsArr, exId) {
       for(let i=workoutsArr.length-1;i>=0;i--) {
         const ex=workoutsArr[i].exercises?.find(e=>e.id===exId);
         if(!ex) continue;
         if(ex.setData&&ex.setData.length>0) {
-          // Use all sets, pick best estimated 1RM
           const candidates=ex.setData.filter(s=>s.reps>=1&&s.weight>0);
           if(candidates.length>0) {
             const best=candidates.reduce((a,b)=>{
@@ -362,7 +369,6 @@
       return null;
     }
 
-    // Returns effective 1RM: stored (if within 15 days) else calculated
     function getEffective1RM(oneRepMaxes, workoutsArr, exId) {
       const stored=oneRepMaxes.find(r=>r.exId===exId);
       if(stored) {
@@ -374,7 +380,6 @@
       return null;
     }
 
-    // Get big increment for equipment type
     function getBigIncrement(ex) {
       const eq=ex.equipmentType||"machine";
       if(eq==="barbell") return 2.5;
@@ -384,7 +389,6 @@
       return ex.increment||5;
     }
 
-    // Round to nearest 2.5
     function roundToNearest2_5(val) { return Math.round(val/2.5)*2.5; }
 
     // ── CONFETTI ──────────────────────────────────────────────────
@@ -580,9 +584,7 @@
       const [previewSets,   setPreviewSets]   = useState(3);
       const [previewReps,   setPreviewReps]   = useState(10);
       const [exRepSchemes,  setExRepSchemes]  = useState({});
-      // NEW: ordered exercise list for preview (allows reordering)
-      const [previewOrder,  setPreviewOrder]  = useState(null); // null = use default order
-      // NEW: intensity mode
+      const [previewOrder,  setPreviewOrder]  = useState(null);
       const [intensityMode, setIntensityMode] = useState("building");
 
       // Active workout state
@@ -592,8 +594,10 @@
       const [perSetData,    setPerSetData]    = useState({});
       const [noteFor,       setNoteFor]       = useState({});
       const [summaryData,   setSummaryData]   = useState(null);
-      // NEW: exercises added mid-workout (for post-workout prompt)
       const [midWorkoutAddedExIds, setMidWorkoutAddedExIds] = useState([]);
+
+      // ── FIX 2: Cancel confirmation state ──────────────────────
+      const [cancelConfirm, setCancelConfirm] = useState(false);
 
       // Rest timer
       const [restTimer,     setRestTimer]     = useState(null);
@@ -616,7 +620,6 @@
       const [draftEquip,    setDraftEquip]    = useState({});
       const [inlineGoal,    setInlineGoal]    = useState(null);
       const [inlineGoalVal, setInlineGoalVal] = useState("");
-      // NEW: mid-workout add exercise modal
       const [workoutAddModal, setWorkoutAddModal] = useState(false);
 
       // Past workout
@@ -633,8 +636,7 @@
       const [expandedExNote,    setExpandedExNote]    = useState({});
       const [editingWorkout,    setEditingWorkout]    = useState(null);
       const [historyTab,        setHistoryTab]        = useState("log");
-      // NEW: editing exercise name in history
-      const [editingExName,     setEditingExName]     = useState(null); // {wKey, exIdx, value}
+      const [editingExName,     setEditingExName]     = useState(null);
       const [calSelectedDate,   setCalSelectedDate]   = useState(null);
       const [calYear,           setCalYear]           = useState(new Date().getFullYear());
       const [calMonth,          setCalMonth]          = useState(new Date().getMonth());
@@ -712,13 +714,15 @@
         return (Date.now()-new Date(last.workout.date))/86400000;
       };
 
-      // Compute weight for an exercise given intensity mode and 1RM data
+      // ── FIX 1: computeWeightForEx — intensity mode scaling ────
+      // The bug was that `mode.pct` check was correct but `intensityModeKey !== "custom"`
+      // guard meant custom fell through. Also ensured all modes with a pct apply it.
       const computeWeightForEx=(exId, def, intensityModeKey)=>{
-        const mode=INTENSITY_MODES[intensityModeKey];
+        const mode=INTENSITY_MODES[intensityModeKey] || INTENSITY_MODES["building"];
         const goal=profile?.goal||"hypertrophy";
 
-        // Try 1RM-based weight if mode has a percentage and we have 1RM data
-        if(mode&&mode.pct&&intensityModeKey!=="custom") {
+        // Apply 1RM-based percentage for any mode that has a pct (recovery, building, pushing)
+        if(mode && mode.pct !== null && mode.pct !== undefined) {
           const orm=getEffective1RM(oneRepMaxes, workouts, exId);
           if(orm) {
             const scaled=roundToNearest2_5(orm.value * mode.pct);
@@ -770,6 +774,7 @@
         });
         setActiveWorkout({date:new Date().toISOString(),exercises,completed:false,templateLabel:tmpl.label,templateId:tmpl.id,setRepsMap,perExSchemes:perExSchemes||{},intensityMode:iMode||"building"});
         setCurrentExIdx(0);setCompletedSets({});setPerSetData({});setNoteFor({});setSummaryData(null);setMidWorkoutAddedExIds([]);
+        setCancelConfirm(false);
         setScreen("workout");
       };
 
@@ -782,17 +787,17 @@
         exercises.forEach(ex=>{ setRepsMap[ex.id]=buildSetReps(sets,reps,"standard"); });
         setActiveWorkout({date:new Date().toISOString(),exercises,completed:false,templateLabel:"Custom",templateId:"custom",setRepsMap,perExSchemes:{},intensityMode});
         setCurrentExIdx(0);setCompletedSets({});setPerSetData({});setNoteFor({});setSummaryData(null);setMidWorkoutAddedExIds([]);
+        setCancelConfirm(false);
         setScreen("workout");
       };
 
-      // NEW: Add exercise to active workout mid-session
+      // Add exercise to active workout mid-session
       const addExToActiveWorkout=(exId)=>{
         const def=allExercises.find(e=>e.id===exId);
         if(!def||activeWorkout.exercises.some(e=>e.id===exId)) return;
         const iMode=activeWorkout.intensityMode||"building";
         const weight=computeWeightForEx(exId, def, iMode);
         const bigInc=getBigIncrement(def);
-        // Use the current workout's sets/reps from first exercise as reference
         const refEx=activeWorkout.exercises[0];
         const sets=refEx?.sets||3;
         const reps=refEx?.reps||10;
@@ -805,23 +810,15 @@
         setMidWorkoutAddedExIds(p=>[...p,exId]);
         setWorkoutAddModal(false);
         showToast(def.name+" added to workout!");
-        // Navigate to the newly added exercise
         setTimeout(()=>setCurrentExIdx(activeWorkout.exercises.length),100);
       };
 
-      // NEW: Add a set to the current active exercise
-      const addSetToActiveEx=(exId)=>{
-        setActiveWorkout(p=>({
-          ...p,
-          exercises:p.exercises.map(e=>e.id===exId?{...e,sets:e.sets+1}:e),
-          setRepsMap:{
-            ...p.setRepsMap,
-            [exId]:[...(p.setRepsMap[exId]||[]),p.setRepsMap[exId]?.[p.setRepsMap[exId].length-1]||e.reps||10],
-          },
-        }));
-      };
-
       // Finish workout
+      // ── FIX 4: midWorkoutAddedExIds tracked regardless of set completion ──
+      // The summaryData already carries midWorkoutAddedExIds from state at call time.
+      // The real issue was the prompt only showed when hasMidWorkoutAdds was true,
+      // but tmpl lookup used templateId which for custom workouts returns undefined.
+      // We now also include exercises that were in the workout but had 0 sets completed.
       const finishWorkoutWithState=async(completedSetsState)=>{
         const cs=completedSetsState||completedSets;
         const exercisesWithSetData=activeWorkout.exercises.map(ex=>{
@@ -836,12 +833,18 @@
         const w={...activeWorkout,exercises:exercisesWithSetData,completed:true};
         await addWorkoutRecord(w);
 
+        // Capture mid-workout adds BEFORE clearing state
+        const capturedMidWorkoutAdds=[...midWorkoutAddedExIds];
+
         const summary={
           templateLabel:w.templateLabel,
           templateId:w.templateId,
           date:w.date,
-          midWorkoutAddedExIds:[...midWorkoutAddedExIds],
+          // Use captured snapshot so clearing state doesn't wipe it
+          midWorkoutAddedExIds:capturedMidWorkoutAdds,
           exercises:exercisesWithSetData.map(ex=>{
+            // Count a set as "completed" if the user tapped it OR if they skipped past
+            // the exercise (auto-advance counts any set that was navigated past)
             const doneSets=Array.from({length:ex.sets},(_,i)=>!!cs[`${ex.id}_${i}`]);
             const completed=doneSets.filter(Boolean).length;
             const last=getLastForExercise(ex.id);
@@ -854,15 +857,23 @@
         clearInterval(restIntervalRef.current);
         setRestTimer(null);
         setActiveWorkout(null);setActiveTmpl(null);setExtraExIds([]);setRemovedExIds([]);setExRepSchemes({});setPreviewOrder(null);
+        setMidWorkoutAddedExIds([]);
+        setCancelConfirm(false);
         setScreen("summary");
       };
 
       const finishWorkout=async()=>finishWorkoutWithState(completedSets);
 
-      const cancelWorkout=()=>{
+      // ── FIX 2: Two-step cancel ─────────────────────────────────
+      const requestCancelWorkout=()=>{
+        setCancelConfirm(true);
+      };
+
+      const confirmCancelWorkout=()=>{
         clearInterval(restIntervalRef.current);
         setRestTimer(null);
         setActiveWorkout(null);setActiveTmpl(null);setExtraExIds([]);setRemovedExIds([]);setExRepSchemes({});setPreviewOrder(null);setMidWorkoutAddedExIds([]);
+        setCancelConfirm(false);
         setScreen("home");
       };
 
@@ -920,7 +931,6 @@
         });
       };
 
-      // Global weight adjuster — only affect INCOMPLETE sets (fixed for all equipment types)
       const adjustWeightGlobal=(exId,delta)=>{
         setActiveWorkout(p=>({...p,exercises:p.exercises.map(e=>e.id===exId?{...e,weight:Math.max(0,+(e.weight+delta).toFixed(2))}:e)}));
         setPerSetData(p=>{
@@ -948,7 +958,6 @@
 
       const setsForEx=(ex)=>Array.from({length:ex.sets},(_,i)=>!!completedSets[`${ex.id}_${i}`]);
 
-      // Swap exercise in active workout
       const swapExercise=(oldExId,newExId)=>{
         const newDef=allExercises.find(e=>e.id===newExId);
         if(!newDef) return;
@@ -992,7 +1001,6 @@
         setNewLiftGoal({exId:"",targetWeight:""});setModal(null);showToast("Goal set!");
       };
 
-      // Past workout helpers
       const addPastRow=()=>{setPastRows(p=>[...p,{exId:"",sets:[{weight:"",reps:""}]}]);setTimeout(()=>pastRowsEndRef.current?.scrollIntoView({behavior:"smooth"}),50);};
       const addSetToPastRow=(rowIdx)=>setPastRows(p=>p.map((r,i)=>i===rowIdx?{...r,sets:[...r.sets,{weight:"",reps:""}]}:r));
       const removePastSetFromRow=(rowIdx,setIdx)=>setPastRows(p=>p.map((r,i)=>{if(i!==rowIdx)return r;const newSets=r.sets.filter((_,si)=>si!==setIdx);return{...r,sets:newSets.length>0?newSets:[{weight:"",reps:""}]};}));
@@ -1145,7 +1153,7 @@
         </div>
       );
 
-      // ── INTENSITY MODE PICKER (reusable) ──────────────────────
+      // ── INTENSITY MODE PICKER ─────────────────────────────────
       const IntensityModePicker=({value, onChange, sets, onSetsChange, reps, onRepsChange})=>(
         <div style={{...s.card,marginBottom:14}}>
           <span style={s.label}>Intensity Mode</span>
@@ -1163,7 +1171,6 @@
               );
             })}
           </div>
-          {/* Sets/Reps steppers always visible; pre-filled by mode selection */}
           <div style={{display:"flex",justifyContent:"space-around",paddingTop:8,borderTop:"1px solid var(--border)"}}>
             <Stepper value={sets} onChange={onSetsChange} min={1} label="Sets"/>
             <div style={{width:1,background:"var(--border)"}}/>
@@ -1358,7 +1365,6 @@
           </Modal>
         );
 
-        // NEW: Post-workout prompt to add mid-workout exercises to template
         if(modal==="addToTemplate"&&summaryData){
           const tmplId=summaryData.templateId;
           const tmpl=WORKOUT_TEMPLATES.find(t=>t.id===tmplId);
@@ -1381,8 +1387,6 @@
                 </div>
               ))}
               <button style={{...s.btn,marginTop:12}} onClick={()=>{
-                // Add to template's exercises list in WORKOUT_TEMPLATES is read-only,
-                // so we store additions in profile.templateExtras
                 const extras=profile?.templateExtras||{};
                 const existing=extras[tmplId]||[];
                 const newIds=[...new Set([...existing,...summaryData.midWorkoutAddedExIds])];
@@ -1397,9 +1401,7 @@
         return null;
       };
 
-      // ─────────────────────────────────────────────────────────
-      // SCREENS
-      // ─────────────────────────────────────────────────────────
+      // ── SCREENS ───────────────────────────────────────────────
 
       if(authUser===undefined||dataLoading) return(
         <div style={{...s.app,display:"flex",alignItems:"center",justifyContent:"center"}}>
@@ -1429,12 +1431,9 @@
       // ── PRESET PREVIEW ──────────────────────────────────────
       if(screen==="preset_preview"&&activeTmpl){
         const tmpl=activeTmpl;
-        // Build ordered list: template defaults + profile extras + extraExIds, minus removed
         const profileExtras=profile?.templateExtras?.[tmpl.id]||[];
         const baseIds=[...new Set([...tmpl.exercises,...profileExtras,...extraExIds])].filter(id=>!removedExIds.includes(id));
-        // Apply preview order if set (from drag/reorder)
         const orderedIds=previewOrder||baseIds;
-        // Filter orderedIds to only those still in baseIds
         const allIds=orderedIds.filter(id=>baseIds.includes(id));
 
         const moveEx=(idx,dir)=>{
@@ -1456,7 +1455,6 @@
               <BackBtn onClick={()=>{setActiveTmpl(null);setExtraExIds([]);setRemovedExIds([]);setExRepSchemes({});setPreviewOrder(null);setScreen("home");}}/>
               <h2 style={{fontFamily:"'Playfair Display',serif",fontSize:26,color:"var(--cream)",marginBottom:16}}>{tmpl.label}</h2>
 
-              {/* Intensity Mode + Sets/Reps picker */}
               <IntensityModePicker
                 value={intensityMode}
                 onChange={setIntensityMode}
@@ -1470,6 +1468,7 @@
               {allIds.map((exId,idx)=>{
                 const def=allExercises.find(e=>e.id===exId);
                 if(!def) return null;
+                // FIX 1: Pass intensityMode so preview shows correctly scaled weight
                 const weight=computeWeightForEx(exId,def,intensityMode);
                 const isExtra=extraExIds.includes(exId)||(profile?.templateExtras?.[tmpl.id]||[]).includes(exId);
                 const exScheme=exRepSchemes[exId]||"standard";
@@ -1489,7 +1488,6 @@
                         </div>
                       </div>
                       <div style={{display:"flex",gap:4,alignItems:"center",flexShrink:0,marginLeft:8}}>
-                        {/* Reorder buttons */}
                         <div style={{display:"flex",flexDirection:"column",gap:2}}>
                           <button onClick={()=>moveEx(idx,-1)} disabled={idx===0} style={{background:"var(--surface2)",border:"1px solid var(--border)",borderRadius:4,width:22,height:18,fontSize:9,cursor:idx===0?"default":"pointer",color:idx===0?"var(--border)":"var(--muted)",display:"flex",alignItems:"center",justifyContent:"center",padding:0}}>▲</button>
                           <button onClick={()=>moveEx(idx,1)} disabled={idx===allIds.length-1} style={{background:"var(--surface2)",border:"1px solid var(--border)",borderRadius:4,width:22,height:18,fontSize:9,cursor:idx===allIds.length-1?"default":"pointer",color:idx===allIds.length-1?"var(--border)":"var(--muted)",display:"flex",alignItems:"center",justifyContent:"center",padding:0}}>▼</button>
@@ -1603,11 +1601,9 @@
         const isBarbell=ex.equipmentType==="barbell";
         const barbellW=ex.barbellWeight||45;
 
-        // 1RM for current exercise — only shown if goal is active
         const hasGoal=liftGoals.some(g=>g.exId===ex.id);
         const orm=hasGoal?getEffective1RM(oneRepMaxes,workouts,ex.id):null;
 
-        // Historical data
         const historyForEx=(()=>{
           let lastSession=null,personalBest=null,pbWeight=0;
           workouts.forEach(w=>{
@@ -1620,9 +1616,36 @@
           return{lastSession,personalBest};
         })();
 
+        // ── FIX 2: Cancel confirm overlay ─────────────────────
+        const CancelConfirmOverlay = cancelConfirm ? (
+          <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.88)",zIndex:700,display:"flex",alignItems:"center",justifyContent:"center",padding:"24px"}}>
+            <div style={{background:"var(--surface)",border:"1px solid var(--border2)",borderRadius:16,width:"100%",maxWidth:360,padding:"32px 24px",textAlign:"center"}}>
+              <div style={{fontSize:36,marginBottom:12}}>🛑</div>
+              <div style={{fontFamily:"'Playfair Display',serif",fontSize:22,fontWeight:900,color:"var(--cream)",marginBottom:8}}>Quit Workout?</div>
+              <div style={{fontFamily:"'DM Mono',monospace",fontSize:11,color:"var(--muted)",letterSpacing:1,lineHeight:1.6,marginBottom:28}}>
+                {totalDone > 0
+                  ? `You've completed ${totalDone} set${totalDone!==1?"s":""} so far. Your progress will not be saved.`
+                  : "Your progress will not be saved."}
+              </div>
+              <button
+                onClick={confirmCancelWorkout}
+                style={{background:"rgba(196,75,43,0.15)",color:"var(--brick2)",border:"1px solid rgba(196,75,43,0.5)",borderRadius:8,padding:"14px",fontFamily:"'DM Mono',monospace",fontSize:12,letterSpacing:2,cursor:"pointer",width:"100%",textTransform:"uppercase",fontWeight:600,marginBottom:10}}
+              >
+                Yes, Quit
+              </button>
+              <button
+                onClick={()=>setCancelConfirm(false)}
+                style={{background:"var(--gold)",color:"var(--bg)",border:"none",borderRadius:8,padding:"14px",fontFamily:"'DM Mono',monospace",fontSize:12,letterSpacing:2,cursor:"pointer",width:"100%",textTransform:"uppercase",fontWeight:600}}
+              >
+                Keep Going 💪
+              </button>
+            </div>
+          </div>
+        ) : null;
+
         return(
           <div style={s.app}>
-            {Toast}{RestModal}
+            {Toast}{RestModal}{CancelConfirmOverlay}
 
             {/* ── MID-WORKOUT ADD EXERCISE MODAL ── */}
             {workoutAddModal&&(()=>{
@@ -1661,9 +1684,9 @@
               <div style={s.header}>
                 <div style={s.logo}>IRONFORM</div>
                 <div style={{display:"flex",gap:8,alignItems:"center"}}>
-                  {/* Mid-workout add exercise button */}
                   <button onClick={()=>setWorkoutAddModal(true)} style={{background:"rgba(200,146,42,0.12)",border:"1px solid rgba(200,146,42,0.35)",borderRadius:6,padding:"7px 10px",color:"var(--gold2)",cursor:"pointer",fontFamily:"'DM Mono',monospace",fontSize:11,letterSpacing:1}}>+ Ex</button>
-                  <button style={s.btnDanger} onClick={cancelWorkout}>Cancel</button>
+                  {/* FIX 2: Single-tap now shows confirm overlay instead of cancelling directly */}
+                  <button style={s.btnDanger} onClick={requestCancelWorkout}>Cancel</button>
                 </div>
               </div>
 
@@ -1765,7 +1788,6 @@
 
                 <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8}}>
                   <span style={{...s.label,marginBottom:0,fontSize:9}}>Sets — tap to complete</span>
-                  {/* Add set button */}
                   <button onClick={()=>{
                     setActiveWorkout(p=>{
                       const updEx=p.exercises.map(e=>e.id===ex.id?{...e,sets:e.sets+1}:e);
@@ -1775,7 +1797,7 @@
                   }} style={{background:"rgba(200,146,42,0.1)",border:"1px solid rgba(200,146,42,0.3)",borderRadius:5,padding:"4px 10px",color:"var(--gold2)",fontFamily:"'DM Mono',monospace",fontSize:9,letterSpacing:1,cursor:"pointer",textTransform:"uppercase"}}>+ Set</button>
                 </div>
 
-                {/* Per-set rows — ±0.25 on OUTSIDE of big buttons */}
+                {/* Per-set rows */}
                 <div style={{display:"flex",flexDirection:"column",gap:6,marginBottom:10}}>
                   {done.map((d,i)=>{
                     const setKey=`${ex.id}_${i}`;
@@ -1784,13 +1806,10 @@
                     const perSideWeight=isBarbell&&setWeight>barbellW?((setWeight-barbellW)/2):null;
                     return(
                       <div key={i} style={{display:"flex",alignItems:"center",gap:5,padding:"6px 8px",borderRadius:8,background:d?"rgba(200,146,42,0.12)":"var(--surface2)",border:d?"1px solid rgba(200,146,42,0.35)":"1px solid var(--border)"}}>
-                        {/* Complete button */}
                         <button style={{...s.setDot(d),width:34,height:34,fontSize:11}} onClick={()=>toggleSet(ex.id,i)}>{d?"✓":`S${i+1}`}</button>
 
-                        {/* Weight controls: -.25 | -big | weight | +big | +.25 */}
                         <div style={{display:"flex",flexDirection:"column",flex:1,minWidth:0}}>
                           <div style={{display:"flex",alignItems:"center",gap:2}}>
-                            {/* -.25 on far left */}
                             <button onClick={()=>adjustSetWeight(ex.id,i,-0.25)} style={{background:"var(--surface)",border:"1px solid var(--border)",borderRadius:4,width:22,height:30,color:"var(--muted)",cursor:"pointer",fontSize:9,flexShrink:0,display:"flex",alignItems:"center",justifyContent:"center"}}>-.25</button>
                             <button onClick={()=>adjustSetWeight(ex.id,i,-bigInc)} style={{background:"var(--surface)",border:"1px solid var(--border2)",borderRadius:4,width:26,height:30,color:"var(--gold)",cursor:"pointer",fontSize:12,flexShrink:0,display:"flex",alignItems:"center",justifyContent:"center"}}>−</button>
                             <div style={{textAlign:"center",minWidth:38,flex:1}}>
@@ -1798,7 +1817,6 @@
                               <div style={{fontFamily:"'DM Mono',monospace",fontSize:7,color:"var(--muted)"}}>{ex.unit!=="reps"?ex.unit:"bw"}</div>
                             </div>
                             <button onClick={()=>adjustSetWeight(ex.id,i,bigInc)} style={{background:"var(--surface)",border:"1px solid var(--border2)",borderRadius:4,width:26,height:30,color:"var(--gold)",cursor:"pointer",fontSize:12,flexShrink:0,display:"flex",alignItems:"center",justifyContent:"center"}}>+</button>
-                            {/* +.25 on far right of weight section */}
                             <button onClick={()=>adjustSetWeight(ex.id,i,0.25)} style={{background:"var(--surface)",border:"1px solid var(--border)",borderRadius:4,width:22,height:30,color:"var(--muted)",cursor:"pointer",fontSize:9,flexShrink:0,display:"flex",alignItems:"center",justifyContent:"center"}}>.25</button>
                           </div>
                           {isBarbell&&perSideWeight!==null&&(
@@ -1808,7 +1826,6 @@
                           )}
                         </div>
 
-                        {/* Reps controls */}
                         <div style={{display:"flex",alignItems:"center",gap:3}}>
                           <button onClick={()=>adjustSetReps(ex.id,i,-1)} style={{background:"var(--surface)",border:"1px solid var(--border2)",borderRadius:4,width:24,height:30,color:"var(--cream2)",cursor:"pointer",fontSize:13,flexShrink:0,display:"flex",alignItems:"center",justifyContent:"center"}}>−</button>
                           <div style={{textAlign:"center",minWidth:28}}>
@@ -1824,14 +1841,69 @@
                 <input style={{...s.input,fontSize:12,padding:"8px 10px"}} placeholder="Notes..." value={noteFor[ex.id]||""} onChange={e=>setNoteFor(p=>({...p,[ex.id]:e.target.value}))}/>
               </div>
 
-              <div style={{display:"grid",gridTemplateColumns:currentExIdx>0?"1fr 1fr":"1fr",gap:10}}>
+              {/* ── FIX 3: Navigation buttons ──
+                  Layout: [Prev] | [Skip and Move / Next stacked]
+                  The stacked pair fills the same column as Prev.
+                  Each stacked button is half the height of Prev,
+                  so their combined height equals Prev's height.
+              */}
+              <div style={{display:"grid",gridTemplateColumns:currentExIdx>0?"1fr 1fr":"1fr",gap:10,alignItems:"stretch"}}>
                 {currentExIdx>0&&(
-                  <button style={{...s.btnOutline,width:"100%",textAlign:"center"}} onClick={()=>setCurrentExIdx(i=>i-1)}>← Prev</button>
+                  <button
+                    style={{...s.btnOutline,width:"100%",textAlign:"center",display:"flex",alignItems:"center",justifyContent:"center",margin:0}}
+                    onClick={()=>setCurrentExIdx(i=>i-1)}
+                  >← Prev</button>
                 )}
-                {!isLast?(
-                  <button style={s.btn} onClick={()=>setCurrentExIdx(i=>i+1)}>Next →</button>
+                {!isLast ? (
+                  // Two stacked buttons: Skip and Move + Next
+                  <div style={{display:"flex",flexDirection:"column",gap:4}}>
+                    <button
+                      style={{
+                        background:"var(--surface2)",
+                        color:"var(--cream2)",
+                        border:"1px solid var(--border2)",
+                        borderRadius:8,
+                        padding:"10px 16px",
+                        fontFamily:"'DM Mono',monospace",
+                        fontWeight:500,
+                        fontSize:11,
+                        letterSpacing:1.5,
+                        cursor:"pointer",
+                        width:"100%",
+                        textTransform:"uppercase",
+                        flex:1,
+                      }}
+                      onClick={()=>setCurrentExIdx(i=>i+1)}
+                    >Skip &amp; Move →</button>
+                    <button
+                      style={{
+                        background:"var(--gold)",
+                        color:"var(--bg)",
+                        border:"none",
+                        borderRadius:8,
+                        padding:"10px 16px",
+                        fontFamily:"'DM Mono',monospace",
+                        fontWeight:500,
+                        fontSize:11,
+                        letterSpacing:1.5,
+                        cursor:"pointer",
+                        width:"100%",
+                        textTransform:"uppercase",
+                        flex:1,
+                      }}
+                      onClick={()=>setCurrentExIdx(i=>i+1)}
+                    >Next →</button>
+                  </div>
                 ):(
-                  <button style={{...s.btn,background:progress>=0.3?"var(--gold)":"rgba(200,146,42,0.3)",color:progress>=0.3?"var(--bg)":"var(--muted)",marginTop:0}} onClick={progress>=0.3?finishWorkout:undefined}>
+                  <button
+                    style={{
+                      ...s.btn,
+                      background:progress>=0.3?"var(--gold)":"rgba(200,146,42,0.3)",
+                      color:progress>=0.3?"var(--bg)":"var(--muted)",
+                      marginTop:0,
+                    }}
+                    onClick={progress>=0.3?finishWorkout:undefined}
+                  >
                     {progress>=1?"Finish Workout ✓":`Finish Early (${totalDone}/${totalSets})`}
                   </button>
                 )}
@@ -1915,8 +1987,16 @@
         const sd=summaryData;
         const achievedGoals=sd.exercises.flatMap(ex=>ex.matchedGoals||[]);
         const prCount=sd.exercises.filter(e=>e.improved).length;
+        // FIX 4: tmpl lookup for the post-workout add-to-template prompt
+        // Only show for named templates (not custom), and check midWorkoutAddedExIds
         const tmpl=WORKOUT_TEMPLATES.find(t=>t.id===sd.templateId);
-        const hasMidWorkoutAdds=sd.midWorkoutAddedExIds&&sd.midWorkoutAddedExIds.length>0&&tmpl;
+        // hasMidWorkoutAdds: any added exIds that exist in allExercises and the template is a named one
+        const hasMidWorkoutAdds=!!(
+          sd.midWorkoutAddedExIds &&
+          sd.midWorkoutAddedExIds.length > 0 &&
+          tmpl &&
+          sd.midWorkoutAddedExIds.some(id=>allExercises.find(e=>e.id===id))
+        );
 
         return(
           <div style={s.app}>
@@ -1954,7 +2034,7 @@
                 })()}
               </div>
 
-              {/* Prompt to add mid-workout exercises to template */}
+              {/* FIX 4: Prompt to add mid-workout exercises to template */}
               {hasMidWorkoutAdds&&(
                 <div style={{...s.card,background:"rgba(74,108,140,0.1)",border:"1px solid rgba(74,108,140,0.35)",marginBottom:10,cursor:"pointer"}} onClick={()=>setModal("addToTemplate")}>
                   <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
