@@ -77,8 +77,15 @@
     const { useState, useEffect, useRef, useCallback } = React;
 
     // ── VERSION INFO ──────────────────────────────────────────────
-    const APP_VERSION = "2.7.1";
+    const APP_VERSION = "2.7.2";
     const RELEASE_HISTORY = [
+      {
+        version: "2.7.2",
+        date: "2026-03-12",
+        features: [
+          "Fixed: Finish Early and Finish buttons now always work regardless of how many sets were completed — the progress>=0.3 gate was blocking finishes when exercises were skipped, since skipped sets still counted against the total",
+        ],
+      },
       {
         version: "2.7.1",
         date: "2026-03-12",
@@ -1990,9 +1997,7 @@
                   border:"1px solid rgba(200,146,42,0.25)", borderRadius:8,
                   padding:"10px 16px", fontFamily:"'DM Mono',monospace",
                   fontWeight:500, fontSize:10, letterSpacing:1.2,
-                  cursor:progress>=0.3?"pointer":"default",
-                  width:"100%", textTransform:"uppercase",
-                  opacity:progress>=0.3?1:0.4,
+                  cursor:"pointer", width:"100%", textTransform:"uppercase",
                 };
 
                 return (
@@ -2019,7 +2024,7 @@
                       <div style={{display:"flex",flexDirection:"column",gap:4}}>
                         <button
                           style={btnFinishEarly}
-                          onClick={progress>=0.3?finishWorkout:undefined}
+                          onClick={finishWorkout}
                         >
                           {progress>=1?"Finish Workout ✓":`Finish Early (${totalDone}/${totalSets})`}
                         </button>
@@ -2030,10 +2035,7 @@
                           </button>
                         ) : (
                           // Truly done
-                          <button
-                            style={{...btnNext, background:progress>=0.3?"var(--gold)":"rgba(200,146,42,0.3)", color:progress>=0.3?"var(--bg)":"var(--muted)", cursor:progress>=0.3?"pointer":"default"}}
-                            onClick={progress>=0.3?finishWorkout:undefined}
-                          >
+                          <button style={btnNext} onClick={finishWorkout}>
                             {progress>=1?"Done! ✓":`Finish (${totalDone}/${totalSets})`}
                           </button>
                         )}
