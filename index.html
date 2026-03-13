@@ -77,8 +77,16 @@
     const { useState, useEffect, useRef, useCallback } = React;
 
     // ── VERSION INFO ──────────────────────────────────────────────
-    const APP_VERSION = "2.7.2";
+    const APP_VERSION = "2.7.3";
     const RELEASE_HISTORY = [
+      {
+        version: "2.7.3",
+        date: "2026-03-13",
+        features: [
+          "Fixed: Completing all sets of a 'Come back later' exercise before reaching the end of the workout now automatically clears its deferred status — the red dot turns gold and it no longer appears in the revisit queue",
+          "Fixed: Machine and dumbbell calculated weights no longer land on .5 values (e.g. 22.5 → 25, 27.5 → 30) — weights are rounded up to the nearest multiple of 5 for these equipment types",
+        ],
+      },
       {
         version: "2.7.2",
         date: "2026-03-12",
@@ -430,7 +438,6 @@
       const calc=calcEpley1RM(workoutsArr, exId);
       if(calc) return {value:calc,source:"calculated"};
       // Last resort: use expired stored value rather than nothing
-      // This ensures manually-entered 1RMs always drive intensity scaling
       if(stored) return {value:stored.weight,source:"stored_expired"};
       return null;
     }
@@ -445,6 +452,16 @@
     }
 
     function roundToNearest2_5(val) { return Math.round(val/2.5)*2.5; }
+
+    // For machine and dumbbell exercises, weights ending in .5 are not possible
+    // on real equipment — round up to nearest multiple of 5.
+    function roundWeightForEquipment(weight, equipmentType) {
+      if(equipmentType==="machine"||equipmentType==="dumbbell") {
+        // If the value has a .5 fractional part (e.g. 22.5, 27.5), round up to next 5
+        if((weight % 5) === 2.5) return weight + 2.5;
+      }
+      return weight;
+    }
 
     // ── CONFETTI ──────────────────────────────────────────────────
     function Confetti() {
@@ -653,7 +670,6 @@
       // Exercises deferred via "Come back later" — ordered queue, consumed on circle-back
       const [deferredExIds, setDeferredExIds] = useState([]);
 
-      // ── FIX 2: Cancel confirmation state ──────────────────────
       const [cancelConfirm, setCancelConfirm] = useState(false);
 
       // Rest timer
@@ -697,12 +713,12 @@
       const [calSelectedDate,   setCalSelectedDate]   = useState(null);
       const [calYear,           setCalYear]           = useState(new Date().getFullYear());
       const [calMonth,          setCalMonth]          = useState(new Date().getMonth());
-      const [deleteWorkoutConfirm, setDeleteWorkoutConfirm] = useState(null); // wKey of workout pending delete
+      const [deleteWorkoutConfirm, setDeleteWorkoutConfirm] = useState(null);
 
       // Exercise database screen
-      const [editingExDef,      setEditingExDef]      = useState(null); // {ex, isBuiltin} being edited
-      const [draftExDef,        setDraftExDef]        = useState({});   // draft fields
-      const [builtinOverrides,  setBuiltinOverrides]  = useState({});   // {exId: {name, defaultWeight, ...}}
+      const [editingExDef,      setEditingExDef]      = useState(null);
+      const [draftExDef,        setDraftExDef]        = useState({});
+      const [builtinOverrides,  setBuiltinOverrides]  = useState({});
 
       const allExercises = [
         ...BUILTIN_EXERCISES.map(ex=>builtinOverrides[ex.id]?{...ex,...builtinOverrides[ex.id]}:ex),
@@ -791,14 +807,11 @@
         const mode=INTENSITY_MODES[intensityModeKey] || INTENSITY_MODES["building"];
         const goal=profile?.goal||"hypertrophy";
 
-        // Apply 1RM-based percentage for any mode that has a pct (recovery, building, pushing)
-        // Floor is 5 lbs (safety only) — NOT def.defaultWeight, which is a new-user seed value
-        // and must not override a legitimate percentage-based calculation.
         if(mode && mode.pct !== null && mode.pct !== undefined) {
           const orm=getEffective1RM(oneRepMaxes, workouts, exId);
           if(orm) {
             const scaled=roundToNearest2_5(orm.value * mode.pct);
-            return Math.max(scaled, 5);
+            return roundWeightForEquipment(Math.max(scaled, 5), def.equipmentType);
           }
         }
 
@@ -812,9 +825,9 @@
             const delta=progressed-last.exercise.weight;
             return Math.max(0,last.exercise.weight-Math.abs(delta));
           }
-          return safeProgressWeight(last.exercise.weight,goal,weeks,def.unit);
+          return roundWeightForEquipment(safeProgressWeight(last.exercise.weight,goal,weeks,def.unit), def.equipmentType);
         }
-        return def.defaultWeight;
+        return roundWeightForEquipment(def.defaultWeight, def.equipmentType);
       };
 
       const buildExerciseList=(exIdList, sets, reps, intensityModeKey="building")=>{
@@ -885,12 +898,6 @@
         setTimeout(()=>setCurrentExIdx(activeWorkout.exercises.length),100);
       };
 
-      // Finish workout
-      // ── FIX 4: midWorkoutAddedExIds tracked regardless of set completion ──
-      // The summaryData already carries midWorkoutAddedExIds from state at call time.
-      // The real issue was the prompt only showed when hasMidWorkoutAdds was true,
-      // but tmpl lookup used templateId which for custom workouts returns undefined.
-      // We now also include exercises that were in the workout but had 0 sets completed.
       const finishWorkoutWithState=async(completedSetsState)=>{
         const cs=completedSetsState||completedSets;
         const exercisesWithSetData=activeWorkout.exercises.map(ex=>{
@@ -905,18 +912,14 @@
         const w={...activeWorkout,exercises:exercisesWithSetData,completed:true};
         await addWorkoutRecord(w);
 
-        // Capture mid-workout adds BEFORE clearing state
         const capturedMidWorkoutAdds=[...midWorkoutAddedExIds];
 
         const summary={
           templateLabel:w.templateLabel,
           templateId:w.templateId,
           date:w.date,
-          // Use captured snapshot so clearing state doesn't wipe it
           midWorkoutAddedExIds:capturedMidWorkoutAdds,
           exercises:exercisesWithSetData.map(ex=>{
-            // Count a set as "completed" if the user tapped it OR if they skipped past
-            // the exercise (auto-advance counts any set that was navigated past)
             const doneSets=Array.from({length:ex.sets},(_,i)=>!!cs[`${ex.id}_${i}`]);
             const completed=doneSets.filter(Boolean).length;
             const last=getLastForExercise(ex.id);
@@ -937,7 +940,6 @@
 
       const finishWorkout=async()=>finishWorkoutWithState(completedSets);
 
-      // ── FIX 2: Two-step cancel ─────────────────────────────────
       const requestCancelWorkout=()=>{
         setCancelConfirm(true);
       };
@@ -980,6 +982,21 @@
               const currentEx=activeWorkout.exercises[currentExIdx];
               const currentExSets=Array.from({length:currentEx.sets},(_,si)=>newState[`${currentEx.id}_${si}`]);
               const currentExAllDone=currentExSets.every(Boolean);
+
+              // If the exercise that just had a set completed is deferred AND all its
+              // sets are now done, clear it from the deferred queue automatically.
+              const completedExObj=activeWorkout.exercises.find(e=>e.id===exId);
+              const completedExSets=Array.from({length:completedExObj?.sets||0},(_,si)=>newState[`${exId}_${si}`]);
+              const completedExAllDone=completedExSets.every(Boolean);
+              setTimeout(()=>{
+                setDeferredExIds(prev=>{
+                  if(prev.includes(exId)&&completedExAllDone) {
+                    return prev.filter(id=>id!==exId);
+                  }
+                  return prev;
+                });
+              },0);
+
               if(currentExAllDone&&exId===currentEx.id){
                 clearInterval(restIntervalRef.current);setRestTimer(null);
                 const nextIdx=currentExIdx+1;
@@ -1547,7 +1564,6 @@
               {allIds.map((exId,idx)=>{
                 const def=allExercises.find(e=>e.id===exId);
                 if(!def) return null;
-                // FIX 1: Pass intensityMode so preview shows correctly scaled weight
                 const weight=computeWeightForEx(exId,def,intensityMode);
                 const isExtra=extraExIds.includes(exId)||(profile?.templateExtras?.[tmpl.id]||[]).includes(exId);
                 const exScheme=exRepSchemes[exId]||"standard";
@@ -1673,11 +1689,6 @@
         const ex=exercises[currentExIdx];
         const done=setsForEx(ex);
         const allDone=done.every(Boolean);
-        // isLast: true when there are no more exercises to visit after this one.
-        // After "Come back later", you may be at a lower index but still be on the
-        // final exercise in the queue — so we can't rely on index position alone.
-        // An exercise is "next up" if it's after currentExIdx AND not deferred,
-        // OR it's deferred but not the current exercise.
         const remainingDeferred=deferredExIds.filter(id=>id!==ex.id);
         const hasMoreAhead=exercises.slice(currentExIdx+1).some(e=>!deferredExIds.includes(e.id));
         const isLast=!hasMoreAhead && remainingDeferred.length===0;
@@ -1702,7 +1713,6 @@
           return{lastSession,personalBest};
         })();
 
-        // ── FIX 2: Cancel confirm overlay ─────────────────────
         const CancelConfirmOverlay = cancelConfirm ? (
           <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.88)",zIndex:700,display:"flex",alignItems:"center",justifyContent:"center",padding:"24px"}}>
             <div style={{background:"var(--surface)",border:"1px solid var(--border2)",borderRadius:16,width:"100%",maxWidth:360,padding:"32px 24px",textAlign:"center"}}>
@@ -1771,7 +1781,6 @@
                 <div style={s.logo}>IRONFORM</div>
                 <div style={{display:"flex",gap:8,alignItems:"center"}}>
                   <button onClick={()=>setWorkoutAddModal(true)} style={{background:"rgba(200,146,42,0.12)",border:"1px solid rgba(200,146,42,0.35)",borderRadius:6,padding:"7px 10px",color:"var(--gold2)",cursor:"pointer",fontFamily:"'DM Mono',monospace",fontSize:11,letterSpacing:1}}>+ Ex</button>
-                  {/* FIX 2: Single-tap now shows confirm overlay instead of cancelling directly */}
                   <button style={s.btnDanger} onClick={requestCancelWorkout}>Cancel</button>
                 </div>
               </div>
@@ -1933,31 +1942,20 @@
                 <input style={{...s.input,fontSize:12,padding:"8px 10px"}} placeholder="Notes..." value={noteFor[ex.id]||""} onChange={e=>setNoteFor(p=>({...p,[ex.id]:e.target.value}))}/>
               </div>
 
-              {/* ── NAVIGATION BUTTONS ──
-                  Non-last: [Prev] | [Come back later / Skip stacked]
-                  Last (deferred remain): [Prev] | [Finish Early / Next N to revisit stacked]
-                  Last (none deferred): [Prev] | [Finish Early / Finish stacked]
-                  isLast is computed above accounting for deferred queue.
-              */}
               {(()=>{
                 const isDeferred = deferredExIds.includes(ex.id);
                 const remainingDeferred = deferredExIds.filter(id=>id!==ex.id);
 
-                // Defer current exercise and move to next undeferred, or first deferred
                 const deferCurrentEx = () => {
                   const newDeferred = isDeferred ? deferredExIds : [...deferredExIds, ex.id];
                   setDeferredExIds(newDeferred);
-                  // Find next exercise that isn't already deferred (and isn't current)
                   let nextIdx = -1;
                   for(let i=currentExIdx+1; i<exercises.length; i++){
                     if(!newDeferred.includes(exercises[i].id)) { nextIdx=i; break; }
                   }
                   if(nextIdx>=0) { setCurrentExIdx(nextIdx); return; }
-                  // All remaining are deferred — nothing to advance to naturally
-                  // (isLast will now be true so finish buttons appear)
                 };
 
-                // Pop first deferred from queue and navigate to it
                 const circleBackToDeferred = () => {
                   if(remainingDeferred.length===0) return;
                   const firstId = remainingDeferred[0];
@@ -1966,8 +1964,6 @@
                   if(idx>=0) setCurrentExIdx(idx);
                 };
 
-                // Advance to next exercise (Skip — does not defer, just moves forward)
-                // If at the physical last index, circle back to deferred or finish
                 const skipToNext = () => {
                   const nextIdx = currentExIdx + 1;
                   if(nextIdx < exercises.length) {
@@ -1975,7 +1971,6 @@
                   } else if(remainingDeferred.length > 0) {
                     circleBackToDeferred();
                   }
-                  // else: isLast is true, this button shouldn't be visible — safety no-op
                 };
 
                 const btnDefer = {
@@ -2010,7 +2005,6 @@
                     )}
 
                     {!isLast ? (
-                      // Mid-workout: Come back later (top) + Skip (bottom)
                       <div style={{display:"flex",flexDirection:"column",gap:4}}>
                         <button style={btnDefer} onClick={deferCurrentEx}>
                           ↩ Come back later
@@ -2020,7 +2014,6 @@
                         </button>
                       </div>
                     ) : (
-                      // Last exercise — show finish options
                       <div style={{display:"flex",flexDirection:"column",gap:4}}>
                         <button
                           style={btnFinishEarly}
@@ -2029,12 +2022,10 @@
                           {progress>=1?"Finish Workout ✓":`Finish Early (${totalDone}/${totalSets})`}
                         </button>
                         {remainingDeferred.length>0 ? (
-                          // Still have deferred exercises to revisit
                           <button style={btnNext} onClick={circleBackToDeferred}>
                             Next → ({remainingDeferred.length} to revisit)
                           </button>
                         ) : (
-                          // Truly done
                           <button style={btnNext} onClick={finishWorkout}>
                             {progress>=1?"Done! ✓":`Finish (${totalDone}/${totalSets})`}
                           </button>
@@ -2105,7 +2096,7 @@
                   <div style={{fontFamily:"'DM Mono',monospace",fontSize:9,color:"var(--muted)",marginBottom:14,letterSpacing:0.5,lineHeight:1.6}}>
                     {draftEquip.equipmentType==="barbell"&&`Bar: ${draftEquip.barbellWeight||45} lbs · increment will change to 2.5 lbs`}
                     {draftEquip.equipmentType==="dumbbell"&&"Increment will change to 5 lbs"}
-                    {draftEquip.equipmentType==="cable"&&"Increment will change to 5 lbs"}
+                    {draftEquip.equipmentType==="cable"&&"Increment unchanged"}
                     {draftEquip.equipmentType==="assisted"&&"Weight progression will reverse (less assistance = harder)"}
                     {draftEquip.equipmentType==="machine"&&"Increment unchanged"}
                     {draftEquip.equipmentType==="bodyweight"&&"No weight tracking"}
@@ -2123,10 +2114,7 @@
         const sd=summaryData;
         const achievedGoals=sd.exercises.flatMap(ex=>ex.matchedGoals||[]);
         const prCount=sd.exercises.filter(e=>e.improved).length;
-        // FIX 4: tmpl lookup for the post-workout add-to-template prompt
-        // Only show for named templates (not custom), and check midWorkoutAddedExIds
         const tmpl=WORKOUT_TEMPLATES.find(t=>t.id===sd.templateId);
-        // hasMidWorkoutAdds: any added exIds that exist in allExercises and the template is a named one
         const hasMidWorkoutAdds=!!(
           sd.midWorkoutAddedExIds &&
           sd.midWorkoutAddedExIds.length > 0 &&
@@ -2170,7 +2158,6 @@
                 })()}
               </div>
 
-              {/* FIX 4: Prompt to add mid-workout exercises to template */}
               {hasMidWorkoutAdds&&(
                 <div style={{...s.card,background:"rgba(74,108,140,0.1)",border:"1px solid rgba(74,108,140,0.35)",marginBottom:10,cursor:"pointer"}} onClick={()=>setModal("addToTemplate")}>
                   <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
@@ -2585,7 +2572,6 @@
           const {ex,isBuiltin}=editingExDef;
           const updated={...ex,...draftExDef,defaultWeight:Number(draftExDef.defaultWeight)||0,increment:Number(draftExDef.increment)||2.5,barbellWeight:Number(draftExDef.barbellWeight)||45};
           if(isBuiltin){
-            // Store override in profile
             const newOverrides={...builtinOverrides,[ex.id]:draftExDef};
             setBuiltinOverrides(newOverrides);
             await saveProfile({...profile,builtinExOverrides:newOverrides});
