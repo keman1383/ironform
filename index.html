@@ -457,6 +457,7 @@
       {id:"squat",            name:"Squat",                            category:"Legs",      unit:"lbs", defaultWeight:115,    increment:2.5, equipmentType:"barbell",   barbellWeight:45},
       {id:"leg_press",        name:"Leg Press",                        category:"Legs",      unit:"lbs", defaultWeight:220,    increment:10,  equipmentType:"machine"},
       {id:"leg_curl",         name:"Leg Curl",                         category:"Legs",      unit:"lbs", defaultWeight:105,    increment:5,   equipmentType:"machine"},
+      {id:"leg_extension",    name:"Leg Extension",                    category:"Legs",      unit:"lbs", defaultWeight:70,     increment:5,   equipmentType:"machine"},
       {id:"calf_raise",       name:"Calf Raise",                       category:"Legs",      unit:"lbs", defaultWeight:50,     increment:5,   equipmentType:"machine"},
       {id:"hip_adduction",    name:"Hip Adduction Machine",            category:"Legs",      unit:"lbs", defaultWeight:130,    increment:5,   equipmentType:"machine"},
       {id:"glute_drive",      name:"Glute Drive",                      category:"Legs",      unit:"lbs", defaultWeight:95,     increment:2.5, equipmentType:"barbell",   barbellWeight:45},
@@ -474,6 +475,11 @@
       {id:"one_arm_tricep",   name:"One Arm Cable Tricep",             category:"Arms",      unit:"lbs", defaultWeight:12.5,   increment:5,   equipmentType:"cable"},
       {id:"cable_ab_twist",   name:"Cable Ab Twist",                   category:"Core",      unit:"lbs", defaultWeight:12.5,   increment:5,   equipmentType:"cable"},
       {id:"hanging_leg_lift", name:"Hanging Leg Lifts",                category:"Core",      unit:"reps",defaultWeight:0,      increment:1,   equipmentType:"bodyweight"},
+      {id:"crunch_machine",   name:"Crunch Machine",                   category:"Core",      unit:"lbs", defaultWeight:50,     increment:5,   equipmentType:"machine"},
+      {id:"cable_crunch",     name:"Cable Crunch",                     category:"Core",      unit:"lbs", defaultWeight:40,     increment:5,   equipmentType:"cable"},
+      {id:"ab_wheel",         name:"Ab Wheel Rollout",                 category:"Core",      unit:"reps",defaultWeight:0,      increment:1,   equipmentType:"bodyweight"},
+      {id:"plank",            name:"Plank",                            category:"Core",      unit:"reps",defaultWeight:0,      increment:1,   equipmentType:"bodyweight"},
+      {id:"decline_situp",    name:"Decline Sit-Up",                   category:"Core",      unit:"reps",defaultWeight:0,      increment:1,   equipmentType:"bodyweight"},
     ];
 
     const CATEGORIES = ["Chest","Back","Legs","Shoulders","Arms","Core","Cardio","Other"];
@@ -775,6 +781,7 @@
       const isFinishingRef=useRef(false);
 
       const [restTimer,setRestTimer]=useState(null);
+      const [restTimerDuration,setRestTimerDuration]=useState(60);
       const restIntervalRef=useRef(null);
 
       const [modal,setModal]=useState(null);
@@ -896,7 +903,7 @@
         setActiveWorkout(null); setActiveTmpl(null); setExtraExIds([]); setRemovedExIds([]); setPreviewOrder(null); setMidWorkoutAddedExIds([]); setDeferredExIds([]); setCancelConfirm(false); setScreen("summary");
       };
       const confirmCancelWorkout=()=>{ isFinishingRef.current=false; clearInterval(restIntervalRef.current); setRestTimer(null); setActiveWorkout(null); setActiveTmpl(null); setExtraExIds([]); setRemovedExIds([]); setPreviewOrder(null); setMidWorkoutAddedExIds([]); setDeferredExIds([]); setCancelConfirm(false); setScreen("home"); };
-      const startRestTimer=()=>{ clearInterval(restIntervalRef.current); setRestTimer(60); restIntervalRef.current=setInterval(()=>{ setRestTimer(prev=>{ if(prev===null){clearInterval(restIntervalRef.current);return null;} if(prev<=1){clearInterval(restIntervalRef.current);return 0;} return prev-1; }); },1000); };
+      const startRestTimer=()=>{ clearInterval(restIntervalRef.current); setRestTimer(restTimerDuration); restIntervalRef.current=setInterval(()=>{ setRestTimer(prev=>{ if(prev===null){clearInterval(restIntervalRef.current);return null;} if(prev<=1){clearInterval(restIntervalRef.current);return 0;} return prev-1; }); },1000); };
 
       const toggleSet=(exId,i)=>{
         setCompletedSets(p=>{
@@ -925,6 +932,11 @@
       };
       const adjustSetWeight=(exId,si,delta)=>{ const k=`${exId}_${si}`; setPerSetData(p=>{ const ex=activeWorkout.exercises.find(e=>e.id===exId); return {...p,[k]:{...p[k],weight:Math.max(0,+((p[k]?.weight??ex.weight)+delta).toFixed(2))}}; }); };
       const adjustSetReps=(exId,si,delta)=>{ const k=`${exId}_${si}`; setPerSetData(p=>{ const cur=p[k]?.reps??(activeWorkout.setRepsMap?.[exId]?.[si]??activeWorkout.exercises.find(e=>e.id===exId)?.reps??10); return {...p,[k]:{...p[k],reps:Math.max(1,cur+delta)}}; }); };
+      const removeSet=(exId,si)=>{
+        setActiveWorkout(p=>({...p,exercises:p.exercises.map(e=>e.id===exId?{...e,sets:e.sets-1}:e),setRepsMap:{...p.setRepsMap,[exId]:(p.setRepsMap[exId]||[]).filter((_,i)=>i!==si)}}));
+        setCompletedSets(p=>{ const n={}; Object.entries(p).forEach(([k,v])=>{ const [eid,sidxStr]=k.split("_"); const sidx=Number(sidxStr); if(eid!==exId) n[k]=v; else if(sidx<si) n[k]=v; else if(sidx>si) n[`${eid}_${sidx-1}`]=v; }); return n; });
+        setPerSetData(p=>{ const n={}; Object.entries(p).forEach(([k,v])=>{ const [eid,sidxStr]=k.split("_"); const sidx=Number(sidxStr); if(eid!==exId) n[k]=v; else if(sidx<si) n[k]=v; else if(sidx>si) n[`${eid}_${sidx-1}`]=v; }); return n; });
+      };
       const setsForEx=(ex)=>Array.from({length:ex.sets},(_,i)=>!!completedSets[`${ex.id}_${i}`]);
       const swapExercise=(oldExId,newExId)=>{
         const newDef=allExercises.find(e=>e.id===newExId); if(!newDef) return;
@@ -977,7 +989,7 @@
                   <div className="label" style={{letterSpacing:5,marginBottom:14}}>Rest Timer</div>
                   <div className="display" style={{fontSize:84,lineHeight:1,color:restTimer<=10?"var(--rust)":restTimer<=30?"var(--gold)":"var(--navy)",transition:"color 0.5s"}}>{restTimer}</div>
                   <div className="sans" style={{fontSize:9,fontWeight:700,letterSpacing:4,color:"var(--muted)",marginTop:8,textTransform:"uppercase"}}>Seconds</div>
-                  <div style={{height:4,background:"var(--parchment)",border:"1px solid var(--rule)",overflow:"hidden",width:120,margin:"14px auto 16px"}}><div style={{height:"100%",width:`${(restTimer/60)*100}%`,background:"var(--gold2)",transition:"width 1s linear"}}/></div>
+                  <div style={{height:4,background:"var(--parchment)",border:"1px solid var(--rule)",overflow:"hidden",width:120,margin:"14px auto 16px"}}><div style={{height:"100%",width:`${(restTimer/restTimerDuration)*100}%`,background:"var(--gold2)",transition:"width 1s linear"}}/></div>
                   {upNextLabel&&<div style={{background:"var(--cream2)",border:"1px solid var(--rule)",padding:"10px 14px",marginBottom:14,textAlign:"left"}}><div className="label" style={{fontSize:7,marginBottom:3}}>Up Next</div><div className="slab" style={{fontWeight:600,fontSize:13,color:"var(--navy)",marginBottom:1}}>{upNextLabel}</div><div className="sans" style={{fontSize:10,fontWeight:700,color:"var(--rust)",letterSpacing:1}}>{upNextDetail}</div></div>}
                   <button className="btn-outline" style={{width:"100%"}} onClick={()=>{clearInterval(restIntervalRef.current);setRestTimer(null);}}>Skip</button>
                 </>
@@ -1153,6 +1165,16 @@
               <BackBtn onClick={()=>{setActiveTmpl(null);setExtraExIds([]);setRemovedExIds([]);setPreviewOrder(null);setScreen("home");}} label="Home"/>
               <div className="padded" style={{paddingTop:0}}>
                 <IntensityModePicker value={intensityMode} onChange={setIntensityMode} sets={previewSets} onSetsChange={setPreviewSets} reps={previewReps} onRepsChange={setPreviewReps}/>
+                <div className="card" style={{marginBottom:14}}>
+                  <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+                    <span className="label" style={{marginBottom:0}}>Rest Between Sets</span>
+                    <div style={{display:"flex",alignItems:"center",gap:8}}>
+                      <button onClick={()=>setRestTimerDuration(d=>Math.max(15,d-15))} style={{width:30,height:30,border:"1px solid var(--rule2)",background:"var(--cream)",color:"var(--rust)",fontSize:16,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center"}}>−</button>
+                      <span className="display" style={{fontSize:18,color:"var(--ink)",minWidth:52,textAlign:"center"}}>{restTimerDuration}s</span>
+                      <button onClick={()=>setRestTimerDuration(d=>d+15)} style={{width:30,height:30,border:"1px solid var(--rule2)",background:"var(--cream)",color:"var(--rust)",fontSize:16,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center"}}>+</button>
+                    </div>
+                  </div>
+                </div>
                 <span className="label">Exercises — {allIds.length}</span>
                 {allIds.map((exId,idx)=>{
                   const def=allExercises.find(e=>e.id===exId); if(!def) return null;
@@ -1344,7 +1366,7 @@
                         <div style={{display:"flex",flexDirection:"column",flex:1}}>
                           <div style={{display:"flex",alignItems:"stretch",gap:0}}>
                             <button onClick={()=>adjustSetWeight(ex.id,i,-bigInc)} style={{width:24,height:34,background:"var(--cream)",border:"1px solid var(--rule2)",color:"var(--rust)",cursor:"pointer",fontSize:13,display:"flex",alignItems:"center",justifyContent:"center"}}>−</button>
-                            <div style={{background:"var(--navy)",minWidth:44,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",padding:"0 6px"}}>
+                            <div style={{background:"var(--navy)",width:64,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",padding:"0 6px",flexShrink:0}}>
                               <span className="display" style={{fontSize:13,color:"var(--gold2)"}}>{setWeight}</span>
                               <span className="sans" style={{fontSize:6,fontWeight:700,letterSpacing:1,color:"rgba(245,240,232,0.4)",textTransform:"uppercase"}}>{ex.unit!=="reps"?ex.unit:"bw"}</span>
                             </div>
@@ -1361,6 +1383,7 @@
                           </div>
                           <button onClick={()=>adjustSetReps(ex.id,i,1)} style={{width:24,height:34,background:"var(--cream)",border:"1px solid var(--rule2)",color:"var(--ink)",cursor:"pointer",fontSize:13,display:"flex",alignItems:"center",justifyContent:"center"}}>+</button>
                         </div>
+                        {done.length>1&&<button onClick={()=>removeSet(ex.id,i)} style={{width:20,height:34,background:"transparent",border:"none",color:"var(--rule2)",cursor:"pointer",fontSize:14,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0,paddingLeft:2}}>×</button>}
                       </div>
                     );
                   })}
