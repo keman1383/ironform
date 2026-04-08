@@ -504,6 +504,8 @@
       {id:"legs",label:"Leg Day", emoji:"🦵",topColor:"var(--forest)",exercises:["squat","rdl","leg_press","calf_raise","glute_drive","hip_adduction","leg_curl"]},
     ];
 
+    const CORE_EX_IDS = ["cable_ab_twist","hanging_leg_lift","crunch_machine","cable_crunch","ab_wheel","plank","decline_situp"];
+
     const roundTo2_5 = (v) => Math.round(v/2.5)*2.5;
     const roundForEquip = (w,eq) => ((eq==="machine"||eq==="dumbbell")&&(w%5)===2.5) ? w+2.5 : w;
     const getBigInc = (ex) => ({barbell:2.5,dumbbell:5,cable:5,assisted:2.5}[ex.equipmentType]||ex.increment||5);
@@ -518,7 +520,7 @@
     function calcEpley1RM(workoutsArr, exId) {
       for (let i=workoutsArr.length-1; i>=0; i--) {
         const ex = workoutsArr[i].exercises?.find(e=>e.id===exId);
-        if (!ex) continue;
+        if (!ex||ex.skipped) continue;
         const candidates = (ex.setData?.length>0 ? ex.setData : [{weight:ex.weight,reps:ex.reps}]).filter(s=>s.reps>=1&&s.weight>0);
         if (candidates.length>0) {
           const best = candidates.reduce((a,b)=>{ const v=s=>s.reps===1?s.weight:s.weight*(1+s.reps/30); return v(b)>v(a)?b:a; });
@@ -771,6 +773,7 @@
       const [summaryData,setSummaryData]=useState(null);
       const [midWorkoutAddedExIds,setMidWorkoutAddedExIds]=useState([]);
       const [deferredExIds,setDeferredExIds]=useState([]);
+      const [skippedExIds,setSkippedExIds]=useState(new Set());
       const [cancelConfirm,setCancelConfirm]=useState(false);
       const [workoutAddModal,setWorkoutAddModal]=useState(false);
       const [swapModal,setSwapModal]=useState(null);
@@ -802,6 +805,7 @@
       const [calYear,setCalYear]=useState(new Date().getFullYear());
       const [calMonth,setCalMonth]=useState(new Date().getMonth());
       const [deleteWorkoutConfirm,setDeleteWorkoutConfirm]=useState(null);
+      const [deleteExConfirm,setDeleteExConfirm]=useState(null);
 
       const [pastDate,setPastDate]=useState("");
       const [pastRows,setPastRows]=useState([{exId:"",sets:[{weight:"",reps:""}]}]);
@@ -852,7 +856,7 @@
       const doSave1RM=async(exId,weight)=>{ if(authUser) await fb.set1RM(authUser.uid,exId,weight); setOneRepMaxes(prev=>[...prev.filter(r=>r.exId!==exId),{exId,weight,updatedAt:new Date().toISOString()}]); };
       const doDel1RM=async(exId)=>{ if(authUser) await fb.del1RM(authUser.uid,exId); setOneRepMaxes(prev=>prev.filter(r=>r.exId!==exId)); };
 
-      const getLastForExercise=(exId)=>{ for(let i=workouts.length-1;i>=0;i--){ const ex=workouts[i].exercises?.find(e=>e.id===exId); if(ex) return {workout:workouts[i],exercise:ex}; } return null; };
+      const getLastForExercise=(exId)=>{ for(let i=workouts.length-1;i>=0;i--){ const ex=workouts[i].exercises?.find(e=>e.id===exId); if(ex&&!ex.skipped) return {workout:workouts[i],exercise:ex}; } return null; };
       const daysSinceExercise=(exId)=>{ const last=getLastForExercise(exId); if(!last) return null; return (Date.now()-new Date(last.workout.date))/86400000; };
 
       const computeWeightForEx=(exId,def,iModeKey)=>{
@@ -868,10 +872,11 @@
       const launchWorkout=(tmpl,extras,removed,sets,reps,orderedIds,iMode)=>{
         isFinishingRef.current=false;
         const baseIds=orderedIds||[...tmpl.exercises,...extras].filter(id=>!removed.includes(id));
+        if(!orderedIds){ const coreOptions=CORE_EX_IDS.filter(id=>!baseIds.includes(id)); if(coreOptions.length>0){ const pick=coreOptions[Math.floor(Math.random()*coreOptions.length)]; baseIds.push(pick); } }
         const exercises=buildExerciseList(baseIds,sets,reps,iMode||"building");
         const setRepsMap={}; exercises.forEach(ex=>{ setRepsMap[ex.id]=Array(sets).fill(reps); });
         setActiveWorkout({date:new Date().toISOString(),exercises,completed:false,templateLabel:tmpl.label,templateId:tmpl.id,setRepsMap,intensityMode:iMode||"building"});
-        setCurrentExIdx(0); setCompletedSets({}); setPerSetData({}); setNoteFor({}); setSummaryData(null); setMidWorkoutAddedExIds(extras.filter(id=>!(profile?.templateExtras?.[tmpl.id]||[]).includes(id))); setDeferredExIds([]); setCancelConfirm(false); setScreen("workout");
+        setCurrentExIdx(0); setCompletedSets({}); setPerSetData({}); setNoteFor({}); setSummaryData(null); setMidWorkoutAddedExIds(extras.filter(id=>!(profile?.templateExtras?.[tmpl.id]||[]).includes(id))); setDeferredExIds([]); setSkippedExIds(new Set()); setCancelConfirm(false); setScreen("workout");
       };
       const launchCustomWorkout=()=>{
         isFinishingRef.current=false;
@@ -879,7 +884,7 @@
         const exercises=buildExerciseList(customExIds,sets,reps,intensityMode);
         const setRepsMap={}; exercises.forEach(ex=>{ setRepsMap[ex.id]=Array(sets).fill(reps); });
         setActiveWorkout({date:new Date().toISOString(),exercises,completed:false,templateLabel:"Custom",templateId:"custom",setRepsMap,intensityMode});
-        setCurrentExIdx(0); setCompletedSets({}); setPerSetData({}); setNoteFor({}); setSummaryData(null); setMidWorkoutAddedExIds([]); setDeferredExIds([]); setCancelConfirm(false); setScreen("workout");
+        setCurrentExIdx(0); setCompletedSets({}); setPerSetData({}); setNoteFor({}); setSummaryData(null); setMidWorkoutAddedExIds([]); setDeferredExIds([]); setSkippedExIds(new Set()); setCancelConfirm(false); setScreen("workout");
       };
       const addExToActiveWorkout=(exId)=>{
         const def=allExercises.find(e=>e.id===exId); if(!def) return;
@@ -894,7 +899,7 @@
       const finishWorkoutWithState=async(csState)=>{
         if(isFinishingRef.current) return; isFinishingRef.current=true;
         const cs=csState||completedSets;
-        const exercisesWithSetData=activeWorkout.exercises.map(ex=>{ const sra=activeWorkout.setRepsMap?.[ex.id]||Array(ex.sets).fill(ex.reps); const setData=Array.from({length:ex.sets},(_,i)=>{ const k=`${ex.id}_${i}`; return {weight:perSetData[k]?.weight??ex.weight,reps:perSetData[k]?.reps??sra[i]}; }); return {...ex,setData,note:noteFor[ex.id]||""}; });
+        const exercisesWithSetData=activeWorkout.exercises.map(ex=>{ const sra=activeWorkout.setRepsMap?.[ex.id]||Array(ex.sets).fill(ex.reps); const setData=Array.from({length:ex.sets},(_,i)=>{ const k=`${ex.id}_${i}`; return {weight:perSetData[k]?.weight??ex.weight,reps:perSetData[k]?.reps??sra[i]}; }); return {...ex,setData,note:noteFor[ex.id]||"",skipped:skippedExIds.has(ex.id)}; });
         const w={...activeWorkout,exercises:exercisesWithSetData,completed:true};
         await addWorkoutRecord(w);
         const capturedAdds=[...midWorkoutAddedExIds];
@@ -902,7 +907,7 @@
         clearInterval(restIntervalRef.current); setRestTimer(null);
         setActiveWorkout(null); setActiveTmpl(null); setExtraExIds([]); setRemovedExIds([]); setPreviewOrder(null); setMidWorkoutAddedExIds([]); setDeferredExIds([]); setCancelConfirm(false); setScreen("summary");
       };
-      const confirmCancelWorkout=()=>{ isFinishingRef.current=false; clearInterval(restIntervalRef.current); setRestTimer(null); setActiveWorkout(null); setActiveTmpl(null); setExtraExIds([]); setRemovedExIds([]); setPreviewOrder(null); setMidWorkoutAddedExIds([]); setDeferredExIds([]); setCancelConfirm(false); setScreen("home"); };
+      const confirmCancelWorkout=()=>{ isFinishingRef.current=false; clearInterval(restIntervalRef.current); setRestTimer(null); setActiveWorkout(null); setActiveTmpl(null); setExtraExIds([]); setRemovedExIds([]); setPreviewOrder(null); setMidWorkoutAddedExIds([]); setDeferredExIds([]); setSkippedExIds(new Set()); setCancelConfirm(false); setScreen("home"); };
       const startRestTimer=()=>{ clearInterval(restIntervalRef.current); setRestTimer(restTimerDuration); restIntervalRef.current=setInterval(()=>{ setRestTimer(prev=>{ if(prev===null){clearInterval(restIntervalRef.current);return null;} if(prev<=1){clearInterval(restIntervalRef.current);return 0;} return prev-1; }); },1000); };
 
       const toggleSet=(exId,i)=>{
@@ -1256,7 +1261,7 @@
         const historyForEx=(()=>{ let lastSession=null,personalBest=null,pbWeight=0; workouts.forEach(w=>{ const e=w.exercises?.find(x=>x.id===ex.id); if(!e) return; const w1=e.setData?.length>0?Math.max(...e.setData.map(s=>s.weight||0)):e.weight||0; if(w1>pbWeight){pbWeight=w1;personalBest={date:w.date,weight:w1};} lastSession={date:w.date,weight:e.weight,reps:e.reps,setData:e.setData}; }); return {lastSession,personalBest}; })();
         const deferCurrentEx=()=>{ const nd=deferredExIds.includes(ex.id)?deferredExIds:[...deferredExIds,ex.id]; setDeferredExIds(nd); let ni=-1; for(let i=currentExIdx+1;i<exercises.length;i++){if(!nd.includes(exercises[i].id)){ni=i;break;}} if(ni>=0) setCurrentExIdx(ni); };
         const circleBackToDeferred=()=>{ if(!remainingDeferred.length) return; const firstId=remainingDeferred[0],idx=exercises.findIndex(e=>e.id===firstId); setDeferredExIds(p=>p.filter(id=>id!==firstId)); if(idx>=0) setCurrentExIdx(idx); };
-        const skipToNext=()=>{ const ni=currentExIdx+1; if(ni<exercises.length) setCurrentExIdx(ni); else if(remainingDeferred.length>0) circleBackToDeferred(); };
+        const skipToNext=()=>{ setSkippedExIds(prev=>new Set([...prev,ex.id])); const ni=currentExIdx+1; if(ni<exercises.length) setCurrentExIdx(ni); else if(remainingDeferred.length>0) circleBackToDeferred(); };
 
         return (
           <div className="app screen">
@@ -1473,10 +1478,10 @@
                           <span className="slab" style={{fontWeight:600,fontSize:14,color:"var(--navy)"}}>{ex.name}</span>
                           {ex.improved&&<span className="tag tag-forest" style={{fontSize:7}}>PR ↑</span>}
                         </div>
-                        <div className="sans" style={{fontSize:10,fontWeight:600,color:"var(--muted)",letterSpacing:1}}>{ex.unit==="reps"?"Bodyweight":`${ex.weight} ${ex.unit}`} · {ex.completedSets}/{ex.totalSets} sets</div>
+                        <div className="sans" style={{fontSize:10,fontWeight:600,color:"var(--muted)",letterSpacing:1}}>{ex.unit==="reps"?"Bodyweight":`${ex.weight} ${ex.unit}`} · {ex.skipped?"Skipped":`${ex.completedSets}/${ex.totalSets} sets`}</div>
                         {ex.note&&<div className="slab" style={{fontSize:12,color:"var(--muted)",marginTop:4,fontStyle:"italic"}}>"{ex.note}"</div>}
                       </div>
-                      <span style={{fontSize:16,color:ex.completedSets===ex.totalSets?"var(--forest)":"var(--muted)",marginLeft:10}}>{ex.completedSets===ex.totalSets?"✓":"~"}</span>
+                      <span style={{fontSize:16,color:ex.skipped?"var(--muted)":ex.completedSets===ex.totalSets?"var(--forest)":"var(--muted)",marginLeft:10}}>{ex.skipped?"–":ex.completedSets===ex.totalSets?"✓":"~"}</span>
                     </div>
                   </div>
                 ))}
@@ -1594,6 +1599,14 @@
                           return (
                             <div key={ex.id||ei}>
                               <div style={{padding:"8px 0",borderBottom:"1px solid var(--rule)"}}>
+                                {deleteExConfirm?.wKey===wKey&&deleteExConfirm?.exId===ex.id?(
+                                  <div style={{display:"flex",gap:6,alignItems:"center",padding:"4px 0"}}>
+                                    <span className="sans" style={{fontSize:9,fontWeight:700,color:"var(--rust)",letterSpacing:1,flex:1}}>Remove {ex.name}?</span>
+                                    <button className="btn-sm" style={{background:"var(--rust)",color:"var(--cream)",border:"none",borderBottom:"2px solid var(--brown)"}} onClick={async()=>{const u={...w,exercises:w.exercises.filter((_,xi)=>xi!==ei)};await updateWorkoutRecord(u);setDeleteExConfirm(null);showToast("Exercise removed");}}>Remove</button>
+                                    <button className="btn-sm" onClick={()=>setDeleteExConfirm(null)}>Cancel</button>
+                                  </div>
+                                ):(
+                                  <>
                                 <div style={{display:"flex",justifyContent:"space-between",fontSize:13,marginBottom:hsd?4:0,alignItems:"center"}}>
                                   {isEN?(
                                     <div style={{display:"flex",gap:6,flex:1,alignItems:"center"}}>
@@ -1606,11 +1619,15 @@
                                       <span className="slab" style={{fontWeight:500}}>{ex.name}</span>
                                       <span className="sans" style={{fontSize:8,color:"var(--rule2)"}}>✎</span>
                                       {hasNote&&<span style={{fontSize:11,cursor:"pointer"}} onClick={e=>{e.stopPropagation();setExpandedExNote(p=>({...p,[noteKey]:!p[noteKey]}));}}>💬</span>}
+                                      {ex.skipped&&<span className="tag tag-rust" style={{fontSize:6,letterSpacing:1}}>SKIPPED</span>}
                                     </span>
                                   )}
                                   {!isEN&&!hsd&&<span className="sans" style={{fontSize:11,fontWeight:700,color:"var(--rust)"}}>{ex.unit==="reps"?`BW × ${ex.reps}`:`${ex.weight}${ex.unit} × ${ex.reps}`}{ex.sets>1?` × ${ex.sets}s`:""}</span>}
+                                  {!isEN&&<button onClick={()=>setDeleteExConfirm({wKey,exId:ex.id})} className="btn-ghost" style={{fontSize:16,color:"var(--rule2)",marginLeft:4,flexShrink:0}}>×</button>}
                                 </div>
                                 {hsd&&!isEN&&<div style={{display:"flex",gap:4,flexWrap:"wrap",marginTop:4}}>{ex.setData.map((sd,si)=><span key={si} className="tag tag-rust" style={{fontSize:7}}>S{si+1}: {sd.weight}{ex.unit!=="reps"?ex.unit:""} × {sd.reps}</span>)}</div>}
+                              </>
+                                )}
                               </div>
                               {expandedExNote[noteKey]&&hasNote&&<div className="slab" style={{padding:"6px 10px",background:"rgba(184,125,46,0.06)",borderLeft:"2px solid var(--gold)",margin:"4px 0",fontStyle:"italic",fontSize:12,color:"var(--muted)"}}>"{ex.note}"</div>}
                             </div>
