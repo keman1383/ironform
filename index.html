@@ -871,7 +871,7 @@
         const exercises=buildExerciseList(baseIds,sets,reps,iMode||"building");
         const setRepsMap={}; exercises.forEach(ex=>{ setRepsMap[ex.id]=Array(sets).fill(reps); });
         setActiveWorkout({date:new Date().toISOString(),exercises,completed:false,templateLabel:tmpl.label,templateId:tmpl.id,setRepsMap,intensityMode:iMode||"building"});
-        setCurrentExIdx(0); setCompletedSets({}); setPerSetData({}); setNoteFor({}); setSummaryData(null); setMidWorkoutAddedExIds([]); setDeferredExIds([]); setCancelConfirm(false); setScreen("workout");
+        setCurrentExIdx(0); setCompletedSets({}); setPerSetData({}); setNoteFor({}); setSummaryData(null); setMidWorkoutAddedExIds(extras.filter(id=>!(profile?.templateExtras?.[tmpl.id]||[]).includes(id))); setDeferredExIds([]); setCancelConfirm(false); setScreen("workout");
       };
       const launchCustomWorkout=()=>{
         isFinishingRef.current=false;
