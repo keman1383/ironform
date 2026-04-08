@@ -871,8 +871,8 @@
 
       const launchWorkout=(tmpl,extras,removed,sets,reps,orderedIds,iMode)=>{
         isFinishingRef.current=false;
-        const baseIds=orderedIds||[...tmpl.exercises,...extras].filter(id=>!removed.includes(id));
-        if(!orderedIds){ const coreOptions=CORE_EX_IDS.filter(id=>!baseIds.includes(id)); if(coreOptions.length>0){ const pick=coreOptions[Math.floor(Math.random()*coreOptions.length)]; baseIds.push(pick); } }
+        const baseIds=orderedIds?[...orderedIds]:[...tmpl.exercises,...extras].filter(id=>!removed.includes(id));
+        if(tmpl.id!=="custom"){ const coreOptions=CORE_EX_IDS.filter(id=>!baseIds.includes(id)); if(coreOptions.length>0){ const pick=coreOptions[Math.floor(Math.random()*coreOptions.length)]; baseIds.push(pick); } }
         const exercises=buildExerciseList(baseIds,sets,reps,iMode||"building");
         const setRepsMap={}; exercises.forEach(ex=>{ setRepsMap[ex.id]=Array(sets).fill(reps); });
         setActiveWorkout({date:new Date().toISOString(),exercises,completed:false,templateLabel:tmpl.label,templateId:tmpl.id,setRepsMap,intensityMode:iMode||"building"});
