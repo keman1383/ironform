@@ -905,7 +905,7 @@
         const w={...activeWorkout,exercises:exercisesWithSetData,completed:true};
         await addWorkoutRecord(w);
         const capturedAdds=[...midWorkoutAddedExIds];
-        setSummaryData({ templateLabel:w.templateLabel,templateId:w.templateId,date:w.date,midWorkoutAddedExIds:capturedAdds, exercises:exercisesWithSetData.map(ex=>{ const last=getLastForExercise(ex.id); const improved=last?(ex.equipmentType==="assisted"?ex.weight<last.exercise.weight:ex.weight>last.exercise.weight):false; return {...ex,completedSets:Array.from({length:ex.sets},(_,i)=>!!cs[`${ex.id}_${i}`]).filter(Boolean).length,totalSets:ex.sets,improved,matchedGoals:liftGoals.filter(g=>g.exId===ex.id&&ex.weight>=g.targetWeight)}; }) });
+        setSummaryData({ templateLabel:w.templateLabel,templateId:w.templateId,date:w.date,midWorkoutAddedExIds:capturedAdds, exercises:exercisesWithSetData.map(ex=>{ const last=getLastForExercise(ex.id); const improved=last?(ex.equipmentType==="assisted"?ex.weight<last.exercise.weight:ex.weight>last.exercise.weight):false; return {...ex,completedSets:Array.from({length:ex.sets},(_,i)=>!!cs[`${ex.id}_${i}`]).filter(Boolean).length,totalSets:ex.sets,improved,matchedGoals:liftGoals.filter(g=>g.exId===ex.id&&(ex.equipmentType==="assisted"?ex.weight<=g.targetWeight:ex.weight>=g.targetWeight))}; }) });
         clearInterval(restIntervalRef.current); setRestTimer(null);
         setActiveWorkout(null); setActiveTmpl(null); setExtraExIds([]); setRemovedExIds([]); setPreviewOrder(null); setMidWorkoutAddedExIds([]); setDeferredExIds([]); setCancelConfirm(false); setScreen("summary");
       };
@@ -1514,8 +1514,8 @@
               ):liftGoals.map(goal=>{
                 const def=allExercises.find(e=>e.id===goal.exId); if(!def) return null;
                 const history=getLiftHistory(goal.exId), current=history.length>0?history[history.length-1].weight:null;
-                const pct=current?Math.min(100,Math.round((current/goal.targetWeight)*100)):0;
-                const goalAchieved=current&&current>=goal.targetWeight;
+                const pct=current?(def?.equipmentType==="assisted"?Math.min(100,Math.round((goal.targetWeight/current)*100)):Math.min(100,Math.round((current/goal.targetWeight)*100))):0;
+                const goalAchieved=current&&(def?.equipmentType==="assisted"?current<=goal.targetWeight:current>=goal.targetWeight);
                 return (
                   <div key={goal._id} className="card" style={{marginBottom:12,padding:0,overflow:"hidden"}}>
                     <div style={{background:"var(--navy)",padding:"10px 14px",display:"flex",justifyContent:"space-between",alignItems:"center"}}>
