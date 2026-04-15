@@ -1677,7 +1677,7 @@
               </div>
             </div>
             <div style={{padding:"16px 20px 20px"}}>
-              <div className="card" style={{marginBottom:14,padding:0,overflow:"hidden"}}>
+              <div className="card" style={{marginBottom:14,overflow:"hidden"}}>
                 <div className="card-header-navy"><span className="sans" style={{fontSize:9,fontWeight:700,letterSpacing:3,color:"rgba(245,240,232,0.6)",textTransform:"uppercase"}}>Default Training Goal</span></div>
                 <div style={{padding:"0 0 4px"}}>
                   {Object.entries(GOALS).map(([key,g])=>(
@@ -1691,7 +1691,7 @@
                   ))}
                 </div>
               </div>
-              <div className="card" style={{marginBottom:14,padding:0,overflow:"hidden"}}>
+              <div className="card" style={{marginBottom:14,overflow:"hidden"}}>
                 <div className="card-header" style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
                   <span className="sans" style={{fontSize:9,fontWeight:700,letterSpacing:3,color:"rgba(245,240,232,0.7)",textTransform:"uppercase"}}>Custom Exercises ({customExs.length})</span>
                   <button className="btn-sm" style={{fontSize:8,padding:"4px 10px"}} onClick={()=>{setNewEx({name:"",category:"Chest",unit:"lbs",defaultWeight:45,increment:5,equipmentType:"machine",barbellWeight:45});setModal("addExercise");}}>+ New</button>
@@ -1704,7 +1704,7 @@
                   ))}
                 </div>
               </div>
-              <div className="card" style={{marginBottom:14,padding:0,overflow:"hidden"}}>
+              <div className="card" style={{marginBottom:14,overflow:"hidden"}}>
                 <div className="card-header-navy" style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
                   <span className="sans" style={{fontSize:9,fontWeight:700,letterSpacing:3,color:"rgba(245,240,232,0.6)",textTransform:"uppercase"}}>One-Rep Maxes</span>
                   <button className="btn-sm" style={{fontSize:8,padding:"4px 10px",background:"rgba(245,240,232,0.1)",border:"1px solid rgba(245,240,232,0.2)",color:"rgba(245,240,232,0.6)"}} onClick={()=>{const init={};["bench","squat","lat_pulldown"].forEach(id=>{const s=oneRepMaxes.find(r=>r.exId===id);init[id]=s?s.weight:"";});setDraft1RMs(init);setEditing1RMs(!editing1RMs);}}>{editing1RMs?"Cancel":"Edit"}</button>
