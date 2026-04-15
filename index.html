@@ -480,7 +480,7 @@
       {id:"crunch_machine",   name:"Crunch Machine",                   category:"Core",      unit:"lbs", defaultWeight:50,     increment:5,   equipmentType:"machine"},
       {id:"cable_crunch",     name:"Cable Crunch",                     category:"Core",      unit:"lbs", defaultWeight:40,     increment:5,   equipmentType:"cable"},
       {id:"ab_wheel",         name:"Ab Wheel Rollout",                 category:"Core",      unit:"reps",defaultWeight:0,      increment:1,   equipmentType:"bodyweight"},
-      {id:"plank",            name:"Plank",                            category:"Core",      unit:"reps",defaultWeight:0,      increment:1,   equipmentType:"bodyweight"},
+      {id:"plank",            name:"Plank",                            category:"Core",      unit:"secs",defaultWeight:30,     increment:5,   equipmentType:"bodyweight"},
       {id:"decline_situp",    name:"Decline Sit-Up",                   category:"Core",      unit:"reps",defaultWeight:0,      increment:1,   equipmentType:"bodyweight"},
     ];
 
@@ -516,7 +516,7 @@
       if (goal==="maintain") return current;
       const factor = Math.pow(GOALS[goal].increment, weeksSince||1);
       const proposed = Math.round((current*factor)/2.5)*2.5;
-      const maxInc = ({lbs:10,reps:2}[unit]||5)*(weeksSince||1);
+      const maxInc = ({lbs:10,reps:2,secs:15}[unit]||5)*(weeksSince||1);
       return Math.min(proposed, current+maxInc);
     }
     function calcEpley1RM(workoutsArr, exId) {
@@ -1334,7 +1334,7 @@
 
                 {(historyForEx.lastSession||historyForEx.personalBest)&&(
                   <div className="sans" style={{fontSize:10,fontWeight:600,color:"var(--muted)",marginBottom:12,background:"var(--cream2)",border:"1px solid var(--rule)",padding:"7px 10px",display:"flex",gap:14,flexWrap:"wrap"}}>
-                    {historyForEx.lastSession&&<div><span style={{fontSize:7,letterSpacing:3,textTransform:"uppercase"}}>Last  </span><span style={{color:"var(--ink)"}}>{historyForEx.lastSession.setData?.length>0?historyForEx.lastSession.setData.map((sd,si)=>`S${si+1}:${sd.weight}×${sd.reps}`).join(" "):`${historyForEx.lastSession.weight}×${historyForEx.lastSession.reps}`}</span><span style={{fontSize:8,color:"var(--muted)"}}>  {new Date(historyForEx.lastSession.date).toLocaleDateString("en-US",{month:"short",day:"numeric"})}</span></div>}
+                    {historyForEx.lastSession&&<div><span style={{fontSize:7,letterSpacing:3,textTransform:"uppercase"}}>Last  </span><span style={{color:"var(--ink)"}}>{historyForEx.lastSession.setData?.length>0?historyForEx.lastSession.setData.map((sd,si)=>ex.unit==="secs"?`S${si+1}:${sd.reps}s`:`S${si+1}:${sd.weight}×${sd.reps}`).join(" "):`${historyForEx.lastSession.weight}×${historyForEx.lastSession.reps}`}</span><span style={{fontSize:8,color:"var(--muted)"}}>  {new Date(historyForEx.lastSession.date).toLocaleDateString("en-US",{month:"short",day:"numeric"})}</span></div>}
                     {historyForEx.personalBest?.weight>0&&<div><span style={{fontSize:7,letterSpacing:3,textTransform:"uppercase",color:"var(--gold)"}}>PB  </span><span style={{color:"var(--gold)",fontWeight:700}}>{historyForEx.personalBest.weight}{ex.unit!=="reps"?ex.unit:""}</span></div>}
                   </div>
                 )}
@@ -1370,7 +1370,7 @@
                       <div key={i} style={{display:"flex",alignItems:"center",gap:5,padding:"6px 8px",background:d?"rgba(45,90,61,0.06)":"transparent",border:d?"1px solid rgba(45,90,61,0.3)":"1px solid var(--rule)"}}>
                         <div className={`set-stamp${d?" done":""}`} onClick={()=>toggleSet(ex.id,i)}>{d?"✓":`S${i+1}`}</div>
                         {/* Weight adj */}
-                        <div style={{display:"flex",flexDirection:"column",flex:1}}>
+                        {ex.unit!=="secs"&&<div style={{display:"flex",flexDirection:"column",flex:1}}>
                           <div style={{display:"flex",alignItems:"stretch",gap:0}}>
                             <button onClick={()=>adjustSetWeight(ex.id,i,-bigInc)} style={{width:24,height:34,background:"var(--cream)",border:"1px solid var(--rule2)",color:"var(--rust)",cursor:"pointer",fontSize:13,display:"flex",alignItems:"center",justifyContent:"center"}}>−</button>
                             <div style={{background:"var(--navy)",width:64,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",padding:"0 6px",flexShrink:0}}>
@@ -1380,13 +1380,13 @@
                             <button onClick={()=>adjustSetWeight(ex.id,i,bigInc)} style={{width:24,height:34,background:"var(--cream)",border:"1px solid var(--rule2)",borderLeft:"none",color:"var(--rust)",cursor:"pointer",fontSize:13,display:"flex",alignItems:"center",justifyContent:"center"}}>+</button>
                           </div>
                           {isBarbell&&perSide!==null&&<div className="sans" style={{fontSize:7,fontWeight:700,color:"var(--gold)",letterSpacing:1,textAlign:"center",marginTop:2}}>{perSide.toFixed(2).replace(/\.?0+$/,"")} /side</div>}
-                        </div>
+                        </div>}
                         {/* Reps adj */}
                         <div style={{display:"flex",alignItems:"center",gap:3}}>
                           <button onClick={()=>adjustSetReps(ex.id,i,-1)} style={{width:24,height:34,background:"var(--cream)",border:"1px solid var(--rule2)",color:"var(--ink)",cursor:"pointer",fontSize:13,display:"flex",alignItems:"center",justifyContent:"center"}}>−</button>
                           <div style={{textAlign:"center",minWidth:30}}>
                             <div className="sans" style={{fontSize:14,fontWeight:700,color:"var(--ink)"}}>{setReps}</div>
-                            <div className="sans" style={{fontSize:6,fontWeight:700,color:"var(--muted)",letterSpacing:1,textTransform:"uppercase"}}>reps</div>
+                            <div className="sans" style={{fontSize:6,fontWeight:700,color:"var(--muted)",letterSpacing:1,textTransform:"uppercase"}}>{ex.unit==="secs"?"secs":"reps"}</div>
                           </div>
                           <button onClick={()=>adjustSetReps(ex.id,i,1)} style={{width:24,height:34,background:"var(--cream)",border:"1px solid var(--rule2)",color:"var(--ink)",cursor:"pointer",fontSize:13,display:"flex",alignItems:"center",justifyContent:"center"}}>+</button>
                         </div>
@@ -1466,7 +1466,7 @@
                     </div>
                   ))}
                 </div>
-                {(()=>{ const vol=sd.exercises.reduce((acc,ex)=>{ if(ex.unit==="reps") return acc; return acc+(ex.setData||[]).reduce((a,s)=>(s.weight||0)*(s.reps||0)+a,0); },0); if(!vol) return null; return <div className="sans" style={{marginTop:12,fontSize:10,fontWeight:700,color:"var(--gold2)",letterSpacing:2,textTransform:"uppercase"}}>Volume: {vol.toLocaleString()} lbs</div>; })()}
+                {(()=>{ const vol=sd.exercises.reduce((acc,ex)=>{ if(ex.unit==="reps"||ex.unit==="secs") return acc; return acc+(ex.setData||[]).reduce((a,s)=>(s.weight||0)*(s.reps||0)+a,0); },0); if(!vol) return null; return <div className="sans" style={{marginTop:12,fontSize:10,fontWeight:700,color:"var(--gold2)",letterSpacing:2,textTransform:"uppercase"}}>Volume: {vol.toLocaleString()} lbs</div>; })()}
               </div>
               <div style={{padding:"10px 20px 20px"}}>
                 {hasMidAdds&&<div className="card" style={{borderTop:"3px solid var(--navy)",marginBottom:10,cursor:"pointer"}} onClick={()=>setModal("addToTemplate")}><div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}><div><div className="sans" style={{fontSize:8,fontWeight:700,color:"var(--navy)",letterSpacing:3,textTransform:"uppercase",marginBottom:3}}>New Exercises Added</div><div className="slab" style={{fontSize:13,color:"var(--navy)",fontWeight:500}}>Add {sd.midWorkoutAddedExIds.length===1?"it":"them"} to your {tmpl.label} template?</div></div><span style={{color:"var(--navy)",fontSize:20}}>›</span></div></div>}
@@ -1569,7 +1569,7 @@
                       {dw.map((w,wi)=>(
                         <div key={wi} className="card" style={{marginBottom:8,padding:"14px 16px"}}>
                           {w.templateLabel&&<div style={{marginBottom:8}}><span className="tag tag-rust">{w.templateLabel}</span></div>}
-                          {w.exercises?.map((ex,ei)=>{ const hsd=ex.setData?.length>0; return <div key={ei} style={{paddingBottom:8,marginBottom:8,borderBottom:"1px solid var(--rule)"}}><div style={{display:"flex",justifyContent:"space-between",fontSize:13,marginBottom:hsd?4:0}}><span className="slab" style={{color:"var(--navy)",fontWeight:500}}>{ex.name}</span>{!hsd&&<span className="sans" style={{fontSize:11,fontWeight:700,color:"var(--rust)"}}>{ex.unit==="reps"?`BW × ${ex.reps}`:`${ex.weight}${ex.unit} × ${ex.reps}`}{ex.sets>1?` × ${ex.sets}s`:""}</span>}</div>{hsd&&<div style={{display:"flex",gap:5,flexWrap:"wrap",marginTop:4}}>{ex.setData.map((sd,si)=><span key={si} className="tag tag-rust" style={{fontSize:7}}>S{si+1}: {sd.weight}{ex.unit!=="reps"?ex.unit:""} × {sd.reps}</span>)}</div>}{ex.note&&<div className="slab" style={{fontSize:11,color:"var(--muted)",marginTop:4,fontStyle:"italic"}}>"{ex.note}"</div>}</div>; })}
+                          {w.exercises?.map((ex,ei)=>{ const hsd=ex.setData?.length>0; return <div key={ei} style={{paddingBottom:8,marginBottom:8,borderBottom:"1px solid var(--rule)"}}><div style={{display:"flex",justifyContent:"space-between",fontSize:13,marginBottom:hsd?4:0}}><span className="slab" style={{color:"var(--navy)",fontWeight:500}}>{ex.name}</span>{!hsd&&<span className="sans" style={{fontSize:11,fontWeight:700,color:"var(--rust)"}}>{ex.unit==="reps"?`BW × ${ex.reps}`:`${ex.weight}${ex.unit} × ${ex.reps}`}{ex.sets>1?` × ${ex.sets}s`:""}</span>}</div>{hsd&&<div style={{display:"flex",gap:5,flexWrap:"wrap",marginTop:4}}>{ex.setData.map((sd,si)=><span key={si} className="tag tag-rust" style={{fontSize:7}}>S{si+1}: {ex.unit==="secs"?`${sd.reps}s`:`${sd.weight}${ex.unit!=="reps"?ex.unit:""} × ${sd.reps}`}</span>)}</div>}{ex.note&&<div className="slab" style={{fontSize:11,color:"var(--muted)",marginTop:4,fontStyle:"italic"}}>"{ex.note}"</div>}</div>; })}
                         </div>
                       ))}
                     </div>;
@@ -1627,7 +1627,7 @@
                                   {!isEN&&!hsd&&<span className="sans" style={{fontSize:11,fontWeight:700,color:"var(--rust)"}}>{ex.unit==="reps"?`BW × ${ex.reps}`:`${ex.weight}${ex.unit} × ${ex.reps}`}{ex.sets>1?` × ${ex.sets}s`:""}</span>}
                                   {!isEN&&<button onClick={()=>setDeleteExConfirm({wKey,exId:ex.id})} className="btn-ghost" style={{fontSize:16,color:"var(--rule2)",marginLeft:4,flexShrink:0}}>×</button>}
                                 </div>
-                                {hsd&&!isEN&&<div style={{display:"flex",gap:4,flexWrap:"wrap",marginTop:4}}>{ex.setData.map((sd,si)=><span key={si} className="tag tag-rust" style={{fontSize:7}}>S{si+1}: {sd.weight}{ex.unit!=="reps"?ex.unit:""} × {sd.reps}</span>)}</div>}
+                                {hsd&&!isEN&&<div style={{display:"flex",gap:4,flexWrap:"wrap",marginTop:4}}>{ex.setData.map((sd,si)=><span key={si} className="tag tag-rust" style={{fontSize:7}}>S{si+1}: {ex.unit==="secs"?`${sd.reps}s`:`${sd.weight}${ex.unit!=="reps"?ex.unit:""} × ${sd.reps}`}</span>)}</div>}
                               </>
                                 )}
                               </div>
