@@ -437,9 +437,6 @@
       get1RMs:       async (u) => { const d=await db.collection("users").doc(u).collection("oneRepMaxes").get(); return d.docs.map(x=>({...x.data(),_id:x.id})); },
       set1RM:        async (u,exId,weight) => db.collection("users").doc(u).collection("oneRepMaxes").doc(exId).set({exId,weight,updatedAt:new Date().toISOString()},{merge:true}),
       del1RM:        async (u,exId) => db.collection("users").doc(u).collection("oneRepMaxes").doc(exId).delete(),
-      getMeasurements: async (u) => { const s=await db.collection("users").doc(u).collection("measurements").orderBy("date","desc").get(); return s.docs.map(d=>({...d.data(),_id:d.id})); },
-      addMeasurement:  async (u,m) => { const r=await db.collection("users").doc(u).collection("measurements").add(m); return r.id; },
-    };
     };
 
     const BUILTIN_EXERCISES = [
@@ -757,8 +754,6 @@
       const [customExs,setCustomExs]=useState([]);
       const [liftGoals,setLiftGoals]=useState([]);
       const [oneRepMaxes,setOneRepMaxes]=useState([]);
-      const [measurements,setMeasurements]=useState([]);
-      const [newMeasurement,setNewMeasurement]=useState({belly:"",arms:""});
       const [dataLoading,setDataLoading]=useState(false);
 
       const [activeTmpl,setActiveTmpl]=useState(null);
@@ -835,9 +830,9 @@
       const loadData=async(u)=>{
         setDataLoading(true);
         try {
-          const [prof,wkts,cexs,lgs,orms,meas]=await Promise.all([fb.getProfile(u),fb.getWorkouts(u),fb.getCustomExs(u),fb.getLiftGoals(u),fb.get1RMs(u),fb.getMeasurements(u)]);
+          const [prof,wkts,cexs,lgs,orms]=await Promise.all([fb.getProfile(u),fb.getWorkouts(u),fb.getCustomExs(u),fb.getLiftGoals(u),fb.get1RMs(u)]);
           if(prof){ setProfileS(prof); if(prof.builtinExOverrides) setBuiltinOverrides(prof.builtinExOverrides); }
-          setWorkouts(wkts); setCustomExs(cexs); setLiftGoals(lgs); setOneRepMaxes(orms||[]); setMeasurements(meas||[]);
+          setWorkouts(wkts); setCustomExs(cexs); setLiftGoals(lgs); setOneRepMaxes(orms||[]);
         } catch(e){ console.error(e); }
         setDataLoading(false);
       };
@@ -1734,32 +1729,6 @@
                   })}
                   {editing1RMs&&<div style={{padding:"10px 14px 4px"}}><button className="btn" style={{marginTop:0}} onClick={async()=>{for(const [id,val] of Object.entries(draft1RMs)){if(val&&!isNaN(Number(val))&&Number(val)>0) await doSave1RM(id,Number(val));}setEditing1RMs(false);showToast("1RMs saved!");}}>Save 1RMs</button></div>}
                 </div>
-              </div>
-<div className="card" style={{marginBottom:14,overflow:"hidden"}}>
-                <div className="card-header" style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
-                  <span className="sans" style={{fontSize:9,fontWeight:700,letterSpacing:3,color:"rgba(245,240,232,0.7)",textTransform:"uppercase"}}>Body Measurements</span>
-                  <span className="sans" style={{fontSize:8,fontWeight:600,color:"rgba(245,240,232,0.45)",letterSpacing:1}}>inches</span>
-                </div>
-                <div style={{padding:"12px 14px 8px"}}>
-                  <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,marginBottom:10}}>
-                    <div><span className="label">Belly</span><input className="input" type="number" step="0.1" placeholder="e.g. 34.5" value={newMeasurement.belly} onChange={e=>setNewMeasurement(p=>({...p,belly:e.target.value}))}/></div>
-                    <div><span className="label">Arms</span><input className="input" type="number" step="0.1" placeholder="e.g. 14.0" value={newMeasurement.arms} onChange={e=>setNewMeasurement(p=>({...p,arms:e.target.value}))}/></div>
-                  </div>
-                  <button className="btn-forest" style={{marginTop:0,fontSize:10}} onClick={async()=>{ if(!newMeasurement.belly&&!newMeasurement.arms) return; const m={date:new Date().toISOString(),belly:newMeasurement.belly?Number(newMeasurement.belly):null,arms:newMeasurement.arms?Number(newMeasurement.arms):null}; if(authUser){ const id=await fb.addMeasurement(authUser.uid,m); m._id=id; } setMeasurements(p=>[m,...p]); setNewMeasurement({belly:"",arms:""}); showToast("Measurements logged!"); }}>Log Measurements</button>
-                </div>
-                {measurements.length>0&&(
-                  <div style={{borderTop:"1px solid var(--rule)"}}>
-                    {measurements.slice(0,8).map((m,i)=>(
-                      <div key={m._id||i} style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"8px 14px",borderBottom:"1px solid var(--rule)"}}>
-                        <span className="sans" style={{fontSize:10,fontWeight:700,color:"var(--muted)",letterSpacing:1}}>{new Date(m.date).toLocaleDateString("en-US",{month:"short",day:"numeric",year:"numeric"})}</span>
-                        <div style={{display:"flex",gap:16}}>
-                          {m.belly!=null&&<span className="sans" style={{fontSize:11,fontWeight:700,color:"var(--navy)"}}><span style={{fontSize:8,color:"var(--muted)",letterSpacing:1,textTransform:"uppercase",marginRight:4}}>Belly</span>{m.belly}"</span>}
-                          {m.arms!=null&&<span className="sans" style={{fontSize:11,fontWeight:700,color:"var(--navy)"}}><span style={{fontSize:8,color:"var(--muted)",letterSpacing:1,textTransform:"uppercase",marginRight:4}}>Arms</span>{m.arms}"</span>}
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                )}
               </div>
               <button className="btn-outline" style={{width:"100%",marginBottom:10,textAlign:"center",display:"block"}} onClick={()=>setScreen("exercise_db")}>📋 Exercise Database ›</button>
               <button className="btn-danger" style={{width:"100%",marginTop:6,textAlign:"center",display:"block",padding:"13px"}} onClick={handleSignOut}>Sign Out</button>
