@@ -479,7 +479,6 @@
       {id:"hanging_leg_lift", name:"Hanging Leg Lifts",                category:"Core",      unit:"reps",defaultWeight:0,      increment:1,   equipmentType:"bodyweight"},
       {id:"crunch_machine",   name:"Crunch Machine",                   category:"Core",      unit:"lbs", defaultWeight:50,     increment:5,   equipmentType:"machine"},
       {id:"cable_crunch",     name:"Cable Crunch",                     category:"Core",      unit:"lbs", defaultWeight:40,     increment:5,   equipmentType:"cable"},
-      {id:"ab_wheel",         name:"Ab Wheel Rollout",                 category:"Core",      unit:"reps",defaultWeight:0,      increment:1,   equipmentType:"bodyweight"},
       {id:"plank",            name:"Plank",                            category:"Core",      unit:"secs",defaultWeight:30,     increment:5,   equipmentType:"bodyweight"},
       {id:"decline_situp",    name:"Decline Sit-Up",                   category:"Core",      unit:"reps",defaultWeight:0,      increment:1,   equipmentType:"bodyweight"},
     ];
@@ -506,7 +505,7 @@
       {id:"legs",label:"Leg Day", emoji:"🦵",topColor:"var(--forest)",exercises:["squat","rdl","leg_press","calf_raise","glute_drive","hip_adduction","leg_curl"]},
     ];
 
-    const CORE_EX_IDS = ["cable_ab_twist","hanging_leg_lift","crunch_machine","cable_crunch","ab_wheel","plank","decline_situp"];
+    const CORE_EX_IDS = ["cable_ab_twist","hanging_leg_lift","crunch_machine","cable_crunch","plank","decline_situp"];
 
     const roundTo2_5 = (v) => Math.round(v/2.5)*2.5;
     const roundForEquip = (w,eq) => ((eq==="machine"||eq==="dumbbell")&&(w%5)===2.5) ? w+2.5 : w;
