@@ -66,11 +66,9 @@
     }
     .screen { animation: fadeIn 0.25s ease; }
 
-    /* ── Layout ── */
     .app { min-height:100vh; background:var(--cream); color:var(--ink); position:relative; }
     .content { position:relative; z-index:2; max-width:480px; margin:0 auto; padding:0 0 110px; }
 
-    /* ── Header Band ── */
     .header {
       background: var(--navy);
       border-bottom: 4px solid var(--rust);
@@ -90,314 +88,76 @@
       background: var(--gold);
       z-index: 1;
     }
-    .logo {
-      font-family: 'Alfa Slab One', serif;
-      font-size: 26px;
-      letter-spacing: 3px;
-      text-transform: uppercase;
-      color: var(--cream);
-    }
+    .logo { font-family: 'Alfa Slab One', serif; font-size: 26px; letter-spacing: 3px; text-transform: uppercase; color: var(--cream); }
     .logo span { color: var(--gold2); }
 
-    /* ── Cards ── */
-    .card {
-      border: 1px solid var(--rule);
-      background: var(--cream2);
-      padding: 16px;
-      margin-bottom: 10px;
-    }
-    .card-warm {
-      border: 1px solid var(--rule);
-      border-top: 3px solid var(--rust);
-      background: var(--cream2);
-      margin-bottom: 10px;
-    }
-    .card-header {
-      background: var(--forest);
-      padding: 8px 14px;
-      margin: -16px -16px 12px;
-    }
-    .card-header-navy {
-      background: var(--navy);
-      padding: 8px 14px;
-      margin: -16px -16px 12px;
-    }
+    .card { border: 1px solid var(--rule); background: var(--cream2); padding: 16px; margin-bottom: 10px; }
+    .card-warm { border: 1px solid var(--rule); border-top: 3px solid var(--rust); background: var(--cream2); margin-bottom: 10px; }
+    .card-header { background: var(--forest); padding: 8px 14px; margin: -16px -16px 12px; }
+    .card-header-navy { background: var(--navy); padding: 8px 14px; margin: -16px -16px 12px; }
 
-    /* ── Tile Grid ── */
     .tile {
-      background: var(--cream2);
-      border: 1px solid var(--rule);
-      border-top: 3px solid var(--forest);
-      padding: 16px 14px 14px;
-      cursor: pointer;
-      text-align: center;
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      gap: 7px;
-      width: 100%;
-      position: relative;
-      overflow: hidden;
-      transition: background 0.15s;
+      background: var(--cream2); border: 1px solid var(--rule); border-top: 3px solid var(--forest);
+      padding: 16px 14px 14px; cursor: pointer; text-align: center; display: flex;
+      flex-direction: column; align-items: center; gap: 7px; width: 100%;
+      position: relative; overflow: hidden; transition: background 0.15s;
     }
     .tile:hover { background: var(--parchment); }
-    .tile::after {
-      content: '';
-      position: absolute;
-      bottom: 0; right: 0;
-      width: 14px; height: 14px;
-      background: var(--cream);
-      clip-path: polygon(100% 0, 100% 100%, 0 100%);
-    }
+    .tile::after { content: ''; position: absolute; bottom: 0; right: 0; width: 14px; height: 14px; background: var(--cream); clip-path: polygon(100% 0, 100% 100%, 0 100%); }
     .tile-gold { border-top-color: var(--gold); }
 
-    /* ── Typography ── */
     .display { font-family: 'Alfa Slab One', serif; }
     .slab { font-family: 'Zilla Slab', serif; }
     .sans { font-family: 'Josefin Sans', sans-serif; }
-    .label {
-      font-family: 'Josefin Sans', sans-serif;
-      font-size: 9px;
-      letter-spacing: 4px;
-      color: var(--muted);
-      text-transform: uppercase;
-      display: block;
-      margin-bottom: 8px;
-    }
-    .stamp-text {
-      font-family: 'Josefin Sans', sans-serif;
-      font-size: 8px;
-      font-weight: 700;
-      letter-spacing: 3px;
-      text-transform: uppercase;
-    }
+    .label { font-family: 'Josefin Sans', sans-serif; font-size: 9px; letter-spacing: 4px; color: var(--muted); text-transform: uppercase; display: block; margin-bottom: 8px; }
 
-    /* ── Inputs ── */
-    .input {
-      background: var(--cream);
-      border: 1px solid var(--rule2);
-      padding: 11px 14px;
-      color: var(--ink);
-      font-family: 'Josefin Sans', sans-serif;
-      font-size: 14px;
-      width: 100%;
-      outline: none;
-      box-sizing: border-box;
-    }
+    .input { background: var(--cream); border: 1px solid var(--rule2); padding: 11px 14px; color: var(--ink); font-family: 'Josefin Sans', sans-serif; font-size: 14px; width: 100%; outline: none; box-sizing: border-box; }
     .input:focus { border-color: var(--rust); }
-    .select {
-      background: var(--cream);
-      border: 1px solid var(--rule2);
-      padding: 11px 14px;
-      color: var(--ink);
-      font-family: 'Josefin Sans', sans-serif;
-      font-size: 14px;
-      width: 100%;
-      outline: none;
-      box-sizing: border-box;
-    }
-    .input-dashed {
-      background: transparent;
-      border: none;
-      border-bottom: 1px dashed var(--rule2);
-      padding: 8px 4px;
-      color: var(--ink);
-      font-family: 'Josefin Sans', sans-serif;
-      font-size: 13px;
-      width: 100%;
-      outline: none;
-    }
+    .select { background: var(--cream); border: 1px solid var(--rule2); padding: 11px 14px; color: var(--ink); font-family: 'Josefin Sans', sans-serif; font-size: 14px; width: 100%; outline: none; box-sizing: border-box; }
+    .input-dashed { background: transparent; border: none; border-bottom: 1px dashed var(--rule2); padding: 8px 4px; color: var(--ink); font-family: 'Josefin Sans', sans-serif; font-size: 13px; width: 100%; outline: none; }
 
-    /* ── Buttons ── */
-    .btn {
-      background: var(--rust);
-      color: var(--cream);
-      border: none;
-      border-bottom: 3px solid var(--brown);
-      padding: 14px 24px;
-      font-family: 'Josefin Sans', sans-serif;
-      font-weight: 700;
-      font-size: 11px;
-      letter-spacing: 3px;
-      cursor: pointer;
-      width: 100%;
-      display: block;
-      margin-top: 8px;
-      text-transform: uppercase;
-      transition: background 0.15s;
-    }
+    .btn { background: var(--rust); color: var(--cream); border: none; border-bottom: 3px solid var(--brown); padding: 14px 24px; font-family: 'Josefin Sans', sans-serif; font-weight: 700; font-size: 11px; letter-spacing: 3px; cursor: pointer; width: 100%; display: block; margin-top: 8px; text-transform: uppercase; transition: background 0.15s; }
     .btn:hover { background: var(--rust2); }
-    .btn-outline {
-      background: transparent;
-      color: var(--muted);
-      border: 1px solid var(--rule2);
-      padding: 12px 20px;
-      font-family: 'Josefin Sans', sans-serif;
-      font-size: 10px;
-      font-weight: 600;
-      letter-spacing: 3px;
-      cursor: pointer;
-      text-transform: uppercase;
-      transition: background 0.15s;
-    }
+    .btn-outline { background: transparent; color: var(--muted); border: 1px solid var(--rule2); padding: 12px 20px; font-family: 'Josefin Sans', sans-serif; font-size: 10px; font-weight: 600; letter-spacing: 3px; cursor: pointer; text-transform: uppercase; transition: background 0.15s; }
     .btn-outline:hover { background: var(--parchment); }
-    .btn-sm {
-      background: var(--cream);
-      color: var(--ink);
-      border: 1px solid var(--rule2);
-      padding: 6px 12px;
-      font-family: 'Josefin Sans', sans-serif;
-      font-size: 9px;
-      font-weight: 700;
-      letter-spacing: 2px;
-      cursor: pointer;
-      text-transform: uppercase;
-    }
-    .btn-danger {
-      background: transparent;
-      color: var(--rust);
-      border: 1px solid rgba(196,82,42,0.4);
-      padding: 10px 18px;
-      font-family: 'Josefin Sans', sans-serif;
-      font-size: 10px;
-      font-weight: 700;
-      letter-spacing: 2px;
-      cursor: pointer;
-      text-transform: uppercase;
-    }
+    .btn-sm { background: var(--cream); color: var(--ink); border: 1px solid var(--rule2); padding: 6px 12px; font-family: 'Josefin Sans', sans-serif; font-size: 9px; font-weight: 700; letter-spacing: 2px; cursor: pointer; text-transform: uppercase; }
+    .btn-danger { background: transparent; color: var(--rust); border: 1px solid rgba(196,82,42,0.4); padding: 10px 18px; font-family: 'Josefin Sans', sans-serif; font-size: 10px; font-weight: 700; letter-spacing: 2px; cursor: pointer; text-transform: uppercase; }
     .btn-ghost { background: none; border: none; color: var(--muted); cursor: pointer; }
-    .btn-forest {
-      background: var(--forest);
-      color: var(--cream);
-      border: none;
-      border-bottom: 3px solid #1a3a25;
-      padding: 14px 24px;
-      font-family: 'Josefin Sans', sans-serif;
-      font-weight: 700;
-      font-size: 11px;
-      letter-spacing: 3px;
-      cursor: pointer;
-      width: 100%;
-      text-transform: uppercase;
-      transition: background 0.15s;
-    }
+    .btn-forest { background: var(--forest); color: var(--cream); border: none; border-bottom: 3px solid #1a3a25; padding: 14px 24px; font-family: 'Josefin Sans', sans-serif; font-weight: 700; font-size: 11px; letter-spacing: 3px; cursor: pointer; width: 100%; text-transform: uppercase; transition: background 0.15s; }
     .btn-forest:hover { background: var(--forest2); }
 
-    /* ── Tag / Badge ── */
-    .tag {
-      display: inline-block;
-      border: 1px solid var(--rule2);
-      padding: 2px 8px;
-      font-family: 'Josefin Sans', sans-serif;
-      font-size: 8px;
-      font-weight: 700;
-      letter-spacing: 2px;
-      color: var(--muted);
-      text-transform: uppercase;
-      background: var(--cream);
-    }
+    .tag { display: inline-block; border: 1px solid var(--rule2); padding: 2px 8px; font-family: 'Josefin Sans', sans-serif; font-size: 8px; font-weight: 700; letter-spacing: 2px; color: var(--muted); text-transform: uppercase; background: var(--cream); }
     .tag-rust  { border-color: rgba(196,82,42,0.5); color: var(--rust); background: rgba(196,82,42,0.06); }
     .tag-forest{ border-color: rgba(45,90,61,0.5); color: var(--forest); background: rgba(45,90,61,0.06); }
     .tag-navy  { border-color: rgba(30,48,80,0.5); color: var(--navy); background: rgba(30,48,80,0.06); }
     .tag-gold  { border-color: rgba(184,125,46,0.5); color: var(--gold); background: rgba(184,125,46,0.08); }
 
-    /* ── Nav ── */
-    .nav-bar {
-      position: fixed;
-      bottom: 0; left: 0; right: 0;
-      background: var(--navy);
-      border-top: 3px solid var(--rust);
-      display: flex;
-      justify-content: space-around;
-      padding-bottom: env(safe-area-inset-bottom, 12px);
-      padding-top: 10px;
-      z-index: 100;
-    }
-    .nav-btn {
-      background: none;
-      border: none;
-      cursor: pointer;
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      gap: 3px;
-      font-family: 'Josefin Sans', sans-serif;
-      font-size: 7px;
-      font-weight: 400;
-      letter-spacing: 2px;
-      padding: 4px 16px;
-      text-transform: uppercase;
-      color: rgba(245,240,232,0.35);
-      transition: color 0.15s;
-    }
+    .nav-bar { position: fixed; bottom: 0; left: 0; right: 0; background: var(--navy); border-top: 3px solid var(--rust); display: flex; justify-content: space-around; padding-bottom: env(safe-area-inset-bottom, 12px); padding-top: 10px; z-index: 100; }
+    .nav-btn { background: none; border: none; cursor: pointer; display: flex; flex-direction: column; align-items: center; gap: 3px; font-family: 'Josefin Sans', sans-serif; font-size: 7px; font-weight: 400; letter-spacing: 2px; padding: 4px 16px; text-transform: uppercase; color: rgba(245,240,232,0.35); transition: color 0.15s; }
     .nav-btn.active { color: var(--gold2); }
 
-    /* ── Modals ── */
     .modal-overlay { position:fixed; inset:0; background:rgba(26,21,16,0.75); z-index:500; display:flex; align-items:flex-end; justify-content:center; }
     .modal-overlay-center { position:fixed; inset:0; background:rgba(26,21,16,0.75); z-index:500; display:flex; align-items:center; justify-content:center; padding:20px; }
     .modal-sheet { background:var(--cream); border-top:4px solid var(--rust); width:100%; max-width:480px; max-height:90vh; overflow-y:auto; padding:24px; padding-bottom:44px; position:relative; }
     .modal-sheet::after { content:''; position:absolute; top:0; left:0; right:0; height:3px; background:var(--gold); margin-top:4px; }
     .modal-box { background:var(--cream); border-top:4px solid var(--rust); width:100%; max-width:480px; max-height:90vh; overflow-y:auto; padding:24px; padding-bottom:32px; position:relative; }
 
-    /* ── Ornament Divider ── */
     .divider { display:flex; align-items:center; gap:8px; margin:16px 0; }
     .divider-line { flex:1; height:1px; background:var(--rule); }
     .divider-diamond { width:6px; height:6px; background:var(--rust); transform:rotate(45deg); flex-shrink:0; }
     .divider-label { font-family:'Josefin Sans',sans-serif; font-size:9px; font-weight:600; letter-spacing:4px; color:var(--muted); text-transform:uppercase; white-space:nowrap; }
 
-    /* ── Progress ── */
     .progress-bar { height:4px; background:var(--parchment); overflow:hidden; border:1px solid var(--rule); }
     .progress-fill { height:100%; background:var(--gold2); transition:width 0.4s ease; }
 
-    /* ── Navy Panel (weight display) ── */
-    .navy-panel {
-      background: var(--navy);
-      padding: 10px 18px;
-      text-align: center;
-      min-width: 90px;
-    }
+    .navy-panel { background: var(--navy); padding: 10px 18px; text-align: center; min-width: 90px; }
 
-    /* ── Set Stamp ── */
-    .set-stamp {
-      width: 36px;
-      height: 36px;
-      border: 1.5px solid var(--rule2);
-      background: var(--cream);
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      font-family: 'Josefin Sans', sans-serif;
-      font-size: 10px;
-      font-weight: 700;
-      letter-spacing: 0.5px;
-      cursor: pointer;
-      flex-shrink: 0;
-      color: var(--muted);
-      transition: background 0.1s, border-color 0.1s;
-    }
-    .set-stamp.done {
-      background: var(--forest);
-      border-color: var(--forest);
-      color: var(--cream);
-    }
+    .set-stamp { width: 36px; height: 36px; border: 1.5px solid var(--rule2); background: var(--cream); display: flex; align-items: center; justify-content: center; font-family: 'Josefin Sans', sans-serif; font-size: 10px; font-weight: 700; letter-spacing: 0.5px; cursor: pointer; flex-shrink: 0; color: var(--muted); transition: background 0.1s, border-color 0.1s; }
+    .set-stamp.done { background: var(--forest); border-color: var(--forest); color: var(--cream); }
 
-    /* ── Workout band ── */
-    .workout-band {
-      background: var(--navy);
-      border-bottom: 4px solid var(--rust);
-      padding: 14px 20px 12px;
-      position: relative;
-    }
-    .workout-band::after {
-      content: '';
-      position: absolute;
-      bottom: -7px;
-      left: 0; right: 0;
-      height: 3px;
-      background: var(--gold);
-    }
+    .workout-band { background: var(--navy); border-bottom: 4px solid var(--rust); padding: 14px 20px 12px; position: relative; }
+    .workout-band::after { content: ''; position: absolute; bottom: -7px; left: 0; right: 0; height: 3px; background: var(--gold); }
 
-    /* ── Padded content ── */
     .padded { padding: 16px 20px; }
   </style>
 </head>
@@ -421,22 +181,27 @@
     auth.setPersistence(firebase.auth.Auth.Persistence.LOCAL);
 
     const fb = {
-      getProfile:    async (u) => { const d=await db.collection("users").doc(u).get(); return d.exists?d.data():null; },
-      setProfile:    async (u,data) => db.collection("users").doc(u).set(data,{merge:true}),
-      getWorkouts:   async (u) => { const s=await db.collection("users").doc(u).collection("workouts").orderBy("date").get(); return s.docs.map(d=>({...d.data(),_id:d.id})); },
-      addWorkout:    async (u,w) => { const r=await db.collection("users").doc(u).collection("workouts").add(w); return r.id; },
-      updateWorkout: async (u,id,w) => db.collection("users").doc(u).collection("workouts").doc(id).set(w,{merge:true}),
-      deleteWorkout: async (u,id) => db.collection("users").doc(u).collection("workouts").doc(id).delete(),
-      getCustomExs:  async (u) => { const s=await db.collection("users").doc(u).collection("customExercises").get(); return s.docs.map(d=>({...d.data(),_fid:d.id})); },
-      addCustomEx:   async (u,ex) => { const r=await db.collection("users").doc(u).collection("customExercises").add(ex); return r.id; },
-      updateCustomEx:async (u,fid,data) => db.collection("users").doc(u).collection("customExercises").doc(fid).set(data,{merge:true}),
-      deleteCustomEx:async (u,fid) => db.collection("users").doc(u).collection("customExercises").doc(fid).delete(),
-      getLiftGoals:  async (u) => { const s=await db.collection("users").doc(u).collection("liftGoals").get(); return s.docs.map(d=>({...d.data(),_id:d.id})); },
-      addLiftGoal:   async (u,g) => { const r=await db.collection("users").doc(u).collection("liftGoals").add(g); return r.id; },
-      delLiftGoal:   async (u,id) => db.collection("users").doc(u).collection("liftGoals").doc(id).delete(),
-      get1RMs:       async (u) => { const d=await db.collection("users").doc(u).collection("oneRepMaxes").get(); return d.docs.map(x=>({...x.data(),_id:x.id})); },
-      set1RM:        async (u,exId,weight) => db.collection("users").doc(u).collection("oneRepMaxes").doc(exId).set({exId,weight,updatedAt:new Date().toISOString()},{merge:true}),
-      del1RM:        async (u,exId) => db.collection("users").doc(u).collection("oneRepMaxes").doc(exId).delete(),
+      getProfile:      async (u) => { const d=await db.collection("users").doc(u).get(); return d.exists?d.data():null; },
+      setProfile:      async (u,data) => db.collection("users").doc(u).set(data,{merge:true}),
+      getWorkouts:     async (u) => { const s=await db.collection("users").doc(u).collection("workouts").orderBy("date").get(); return s.docs.map(d=>({...d.data(),_id:d.id})); },
+      addWorkout:      async (u,w) => { const r=await db.collection("users").doc(u).collection("workouts").add(w); return r.id; },
+      updateWorkout:   async (u,id,w) => db.collection("users").doc(u).collection("workouts").doc(id).set(w,{merge:true}),
+      deleteWorkout:   async (u,id) => db.collection("users").doc(u).collection("workouts").doc(id).delete(),
+      getCustomExs:    async (u) => { const s=await db.collection("users").doc(u).collection("customExercises").get(); return s.docs.map(d=>({...d.data(),_fid:d.id})); },
+      addCustomEx:     async (u,ex) => { const r=await db.collection("users").doc(u).collection("customExercises").add(ex); return r.id; },
+      updateCustomEx:  async (u,fid,data) => db.collection("users").doc(u).collection("customExercises").doc(fid).set(data,{merge:true}),
+      deleteCustomEx:  async (u,fid) => db.collection("users").doc(u).collection("customExercises").doc(fid).delete(),
+      getLiftGoals:    async (u) => { const s=await db.collection("users").doc(u).collection("liftGoals").get(); return s.docs.map(d=>({...d.data(),_id:d.id})); },
+      addLiftGoal:     async (u,g) => { const r=await db.collection("users").doc(u).collection("liftGoals").add(g); return r.id; },
+      delLiftGoal:     async (u,id) => db.collection("users").doc(u).collection("liftGoals").doc(id).delete(),
+      get1RMs:         async (u) => { const d=await db.collection("users").doc(u).collection("oneRepMaxes").get(); return d.docs.map(x=>({...x.data(),_id:x.id})); },
+      set1RM:          async (u,exId,weight) => db.collection("users").doc(u).collection("oneRepMaxes").doc(exId).set({exId,weight,updatedAt:new Date().toISOString()},{merge:true}),
+      del1RM:          async (u,exId) => db.collection("users").doc(u).collection("oneRepMaxes").doc(exId).delete(),
+      getMeasurements: async (u) => {
+        const s = await db.collection("users").doc(u).collection("measurements").get();
+        return s.docs.map(d=>({...d.data(),_id:d.id})).sort((a,b)=>new Date(b.date)-new Date(a.date));
+      },
+      addMeasurement:  async (u,m) => { const r=await db.collection("users").doc(u).collection("measurements").add(m); return r.id; },
     };
 
     const BUILTIN_EXERCISES = [
@@ -490,21 +255,16 @@
       endurance:   {label:"Endurance",    increment:1.015, desc:"Light · High reps"},
       maintain:    {label:"Maintain",     increment:1.0,   desc:"Hold current level"},
     };
-    const GOAL_SETS = {
-      strength:{sets:3,reps:5}, hypertrophy:{sets:3,reps:10}, endurance:{sets:3,reps:15}, maintain:{sets:3,reps:8},
-    };
     const INTENSITY_MODES = {
-      recovery:{ label:"Recovery", pct:0.65, sets:4, reps:5,  color:"var(--navy)",   colorDim:"rgba(30,48,80,0.08)",   colorBorder:"rgba(30,48,80,0.35)",   description:"65% · 4×5" },
-      building:{ label:"Building", pct:0.75, sets:3, reps:10, color:"var(--forest)", colorDim:"rgba(45,90,61,0.08)",   colorBorder:"rgba(45,90,61,0.35)",   description:"75% · 3×10" },
-      pushing: { label:"Pushing",  pct:0.90, sets:2, reps:2,  color:"var(--rust)",   colorDim:"rgba(196,82,42,0.08)",  colorBorder:"rgba(196,82,42,0.35)",  description:"90% · 2×2" },
-      custom:  { label:"Custom",   pct:null, sets:null, reps:null, color:"var(--muted)", colorDim:"rgba(138,117,96,0.08)", colorBorder:"rgba(138,117,96,0.3)", description:"Manual" },
+      iron:  { label:"Iron",  pct:null, sets:5, reps:5,  restDuration:30, color:"var(--navy)",   colorDim:"rgba(30,48,80,0.08)",  colorBorder:"rgba(30,48,80,0.35)",  description:"5×5 · 30s" },
+      forge: { label:"Forge", pct:null, sets:4, reps:7,  restDuration:45, color:"var(--forest)", colorDim:"rgba(45,90,61,0.08)",  colorBorder:"rgba(45,90,61,0.35)",  description:"4×7 · 45s" },
+      grind: { label:"Grind", pct:null, sets:3, reps:10, restDuration:60, color:"var(--rust)",   colorDim:"rgba(196,82,42,0.08)", colorBorder:"rgba(196,82,42,0.35)", description:"3×10 · 60s" },
     };
     const WORKOUT_TEMPLATES = [
       {id:"push",label:"Push Day",emoji:"💪",topColor:"var(--forest)",exercises:["bench","incline_db_press","cable_fly","lateral_raise","oh_db_press","tricep_rope","assisted_dip"]},
       {id:"pull",label:"Pull Day",emoji:"🏋️",topColor:"var(--forest)",exercises:["lat_pulldown","seated_cable_row","single_arm_row","preacher_curl","rope_hammer_curl"]},
       {id:"legs",label:"Leg Day", emoji:"🦵",topColor:"var(--forest)",exercises:["squat","rdl","leg_press","calf_raise","glute_drive","hip_adduction","leg_curl"]},
     ];
-
     const CORE_EX_IDS = ["cable_ab_twist","hanging_leg_lift","crunch_machine","cable_crunch","plank","decline_situp"];
 
     const roundTo2_5 = (v) => Math.round(v/2.5)*2.5;
@@ -698,15 +458,20 @@
         </nav>
       );
     }
-    function IntensityModePicker({value, onChange, sets, onSetsChange, reps, onRepsChange}) {
+    function IntensityModePicker({value, onChange, sets, onSetsChange, reps, onRepsChange, onRestChange}) {
       return (
         <div className="card" style={{marginBottom:14}}>
           <span className="label">Intensity Mode</span>
-          <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:5,marginBottom:14}}>
+          <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:5,marginBottom:14}}>
             {Object.entries(INTENSITY_MODES).map(([key,mode])=>{
               const active = value===key;
               return (
-                <button key={key} onClick={()=>{ onChange(key); if(key!=="custom"&&mode.sets){onSetsChange(mode.sets);onRepsChange(mode.reps);} }} style={{padding:"10px 4px",cursor:"pointer",textAlign:"center",background:active?mode.colorDim:"transparent",border:active?`1px solid ${mode.colorBorder}`:"1px solid var(--rule)",transition:"background 0.15s"}}>
+                <button key={key} onClick={()=>{
+                  onChange(key);
+                  onSetsChange(mode.sets);
+                  onRepsChange(mode.reps);
+                  if(onRestChange) onRestChange(mode.restDuration);
+                }} style={{padding:"10px 4px",cursor:"pointer",textAlign:"center",background:active?mode.colorDim:"transparent",border:active?`1px solid ${mode.colorBorder}`:"1px solid var(--rule)",transition:"background 0.15s"}}>
                   <div className="sans" style={{fontSize:10,fontWeight:active?700:400,color:active?mode.color:"var(--muted)",letterSpacing:0.5,textTransform:"uppercase"}}>{mode.label}</div>
                   <div className="sans" style={{fontSize:7,color:active?mode.color:"var(--muted)",marginTop:3,letterSpacing:0.5}}>{mode.description}</div>
                 </button>
@@ -754,15 +519,17 @@
       const [customExs,setCustomExs]=useState([]);
       const [liftGoals,setLiftGoals]=useState([]);
       const [oneRepMaxes,setOneRepMaxes]=useState([]);
+      const [measurements,setMeasurements]=useState([]);
+      const [newMeasurement,setNewMeasurement]=useState({belly:"",arms:""});
       const [dataLoading,setDataLoading]=useState(false);
 
       const [activeTmpl,setActiveTmpl]=useState(null);
       const [extraExIds,setExtraExIds]=useState([]);
       const [removedExIds,setRemovedExIds]=useState([]);
-      const [previewSets,setPreviewSets]=useState(3);
-      const [previewReps,setPreviewReps]=useState(10);
+      const [previewSets,setPreviewSets]=useState(5);
+      const [previewReps,setPreviewReps]=useState(5);
       const [previewOrder,setPreviewOrder]=useState(null);
-      const [intensityMode,setIntensityMode]=useState("building");
+      const [intensityMode,setIntensityMode]=useState("iron");
       const [customExIds,setCustomExIds]=useState([]);
       const [customGoal,setCustomGoal]=useState("hypertrophy");
 
@@ -785,7 +552,7 @@
       const isFinishingRef=useRef(false);
 
       const [restTimer,setRestTimer]=useState(null);
-      const [restTimerDuration,setRestTimerDuration]=useState(60);
+      const [restTimerDuration,setRestTimerDuration]=useState(30);
       const restIntervalRef=useRef(null);
 
       const [modal,setModal]=useState(null);
@@ -830,9 +597,13 @@
       const loadData=async(u)=>{
         setDataLoading(true);
         try {
-          const [prof,wkts,cexs,lgs,orms]=await Promise.all([fb.getProfile(u),fb.getWorkouts(u),fb.getCustomExs(u),fb.getLiftGoals(u),fb.get1RMs(u)]);
+          const [prof,wkts,cexs,lgs,orms]=await Promise.all([
+            fb.getProfile(u),fb.getWorkouts(u),fb.getCustomExs(u),fb.getLiftGoals(u),fb.get1RMs(u)
+          ]);
           if(prof){ setProfileS(prof); if(prof.builtinExOverrides) setBuiltinOverrides(prof.builtinExOverrides); }
           setWorkouts(wkts); setCustomExs(cexs); setLiftGoals(lgs); setOneRepMaxes(orms||[]);
+          // Load measurements separately to isolate any index errors
+          try { const meas=await fb.getMeasurements(u); setMeasurements(meas||[]); } catch(e){ console.warn("Measurements load failed",e); }
         } catch(e){ console.error(e); }
         setDataLoading(false);
       };
@@ -842,7 +613,7 @@
       },[authUser,dataLoading,profile]);
 
       const handleSignIn=async()=>{ setSignInErr(null); setSigningIn(true); try{ await auth.signInWithPopup(gProvider); } catch(e){ setSigningIn(false); if(e.code!=="auth/popup-closed-by-user"&&e.code!=="auth/cancelled-popup-request") setSignInErr("Sign-in failed: "+(e.message||e.code)); } };
-      const handleSignOut=async()=>{ await auth.signOut(); setProfileS(null); setWorkouts([]); setCustomExs([]); setLiftGoals([]); setOneRepMaxes([]); setScreen("home"); };
+      const handleSignOut=async()=>{ await auth.signOut(); setProfileS(null); setWorkouts([]); setCustomExs([]); setLiftGoals([]); setOneRepMaxes([]); setMeasurements([]); setScreen("home"); };
       const showToast=(msg)=>{ setToast(msg); clearTimeout(toastTimer.current); toastTimer.current=setTimeout(()=>setToast(null),3000); };
       const saveProfile=async(p)=>{ setProfileS(p); if(authUser) await fb.setProfile(authUser.uid,p); };
 
@@ -856,42 +627,47 @@
       const doDelLiftGoal=async(id)=>{ if(authUser) await fb.delLiftGoal(authUser.uid,id); setLiftGoals(prev=>prev.filter(g=>g._id!==id)); };
       const doSave1RM=async(exId,weight)=>{ if(authUser) await fb.set1RM(authUser.uid,exId,weight); setOneRepMaxes(prev=>[...prev.filter(r=>r.exId!==exId),{exId,weight,updatedAt:new Date().toISOString()}]); };
       const doDel1RM=async(exId)=>{ if(authUser) await fb.del1RM(authUser.uid,exId); setOneRepMaxes(prev=>prev.filter(r=>r.exId!==exId)); };
+      const doAddMeasurement=async(m)=>{
+        if(authUser){ const id=await fb.addMeasurement(authUser.uid,m); m={...m,_id:id}; }
+        setMeasurements(prev=>[m,...prev]);
+      };
 
       const getLastForExercise=(exId)=>{ for(let i=workouts.length-1;i>=0;i--){ const ex=workouts[i].exercises?.find(e=>e.id===exId); if(ex&&!ex.skipped) return {workout:workouts[i],exercise:ex}; } return null; };
       const daysSinceExercise=(exId)=>{ const last=getLastForExercise(exId); if(!last) return null; return (Date.now()-new Date(last.workout.date))/86400000; };
 
-      const computeWeightForEx=(exId,def,iModeKey)=>{
-        const mode=INTENSITY_MODES[iModeKey]||INTENSITY_MODES["building"];
-        if(mode?.pct){ const orm=getEffective1RM(oneRepMaxes,workouts,exId); if(orm){ const scaled=roundTo2_5(orm.value*mode.pct); return roundForEquip(Math.max(scaled,5),def.equipmentType); } }
+      const computeWeightForEx=(exId,def)=>{
         const last=getLastForExercise(exId); const goal=profile?.goal||"hypertrophy";
         if(last){ const weeks=Math.max(1,Math.round((Date.now()-new Date(last.workout.date))/(7*86400000))); if(def.equipmentType==="assisted"){ const prog=safeProgressWeight(last.exercise.weight,goal,weeks,def.unit); return Math.max(0,last.exercise.weight-Math.abs(prog-last.exercise.weight)); } return roundForEquip(safeProgressWeight(last.exercise.weight,goal,weeks,def.unit),def.equipmentType); }
         return roundForEquip(def.defaultWeight,def.equipmentType);
       };
-      const buildExerciseList=(exIdList,sets,reps,iModeKey="building")=>
-        exIdList.map(exId=>{ const def=allExercises.find(e=>e.id===exId); if(!def) return null; return {id:exId,name:def.name,category:def.category,weight:computeWeightForEx(exId,def,iModeKey),unit:def.unit,sets,reps,increment:def.increment,bigIncrement:getBigInc(def),equipmentType:def.equipmentType||"machine",barbellWeight:def.barbellWeight||null}; }).filter(Boolean);
+      const buildExerciseList=(exIdList,sets,reps)=>
+        exIdList.map(exId=>{ const def=allExercises.find(e=>e.id===exId); if(!def) return null; return {id:exId,name:def.name,category:def.category,weight:computeWeightForEx(exId,def),unit:def.unit,sets,reps,increment:def.increment,bigIncrement:getBigInc(def),equipmentType:def.equipmentType||"machine",barbellWeight:def.barbellWeight||null}; }).filter(Boolean);
 
       const launchWorkout=(tmpl,extras,removed,sets,reps,orderedIds,iMode)=>{
         isFinishingRef.current=false;
         const baseIds=orderedIds?[...orderedIds]:[...tmpl.exercises,...extras].filter(id=>!removed.includes(id));
         if(tmpl.id!=="custom"){ const coreOptions=CORE_EX_IDS.filter(id=>!baseIds.includes(id)); if(coreOptions.length>0){ const pick=coreOptions[Math.floor(Math.random()*coreOptions.length)]; baseIds.push(pick); } }
-        const exercises=buildExerciseList(baseIds,sets,reps,iMode||"building");
+        const exercises=buildExerciseList(baseIds,sets,reps);
         const setRepsMap={}; exercises.forEach(ex=>{ setRepsMap[ex.id]=Array(sets).fill(reps); });
-        setActiveWorkout({date:new Date().toISOString(),exercises,completed:false,templateLabel:tmpl.label,templateId:tmpl.id,setRepsMap,intensityMode:iMode||"building"});
-        setCurrentExIdx(0); setCompletedSets({}); setPerSetData({}); setNoteFor({}); setSummaryData(null); setMidWorkoutAddedExIds(extras.filter(id=>!(profile?.templateExtras?.[tmpl.id]||[]).includes(id))); setDeferredExIds([]); setSkippedExIds(new Set()); setCancelConfirm(false); setScreen("workout");
+        setActiveWorkout({date:new Date().toISOString(),exercises,completed:false,templateLabel:tmpl.label,templateId:tmpl.id,setRepsMap,intensityMode:iMode||"iron"});
+        setCurrentExIdx(0); setCompletedSets({}); setPerSetData({}); setNoteFor({}); setSummaryData(null);
+        setMidWorkoutAddedExIds(extras.filter(id=>!(profile?.templateExtras?.[tmpl.id]||[]).includes(id)));
+        setDeferredExIds([]); setSkippedExIds(new Set()); setCancelConfirm(false); setScreen("workout");
       };
       const launchCustomWorkout=()=>{
         isFinishingRef.current=false;
-        const mode=INTENSITY_MODES[intensityMode], sets=mode.sets||GOAL_SETS[customGoal].sets, reps=mode.reps||GOAL_SETS[customGoal].reps;
-        const exercises=buildExerciseList(customExIds,sets,reps,intensityMode);
+        const mode=INTENSITY_MODES[intensityMode], sets=mode.sets||3, reps=mode.reps||10;
+        const exercises=buildExerciseList(customExIds,sets,reps);
         const setRepsMap={}; exercises.forEach(ex=>{ setRepsMap[ex.id]=Array(sets).fill(reps); });
         setActiveWorkout({date:new Date().toISOString(),exercises,completed:false,templateLabel:"Custom",templateId:"custom",setRepsMap,intensityMode});
-        setCurrentExIdx(0); setCompletedSets({}); setPerSetData({}); setNoteFor({}); setSummaryData(null); setMidWorkoutAddedExIds([]); setDeferredExIds([]); setSkippedExIds(new Set()); setCancelConfirm(false); setScreen("workout");
+        setCurrentExIdx(0); setCompletedSets({}); setPerSetData({}); setNoteFor({}); setSummaryData(null);
+        setMidWorkoutAddedExIds([]); setDeferredExIds([]); setSkippedExIds(new Set()); setCancelConfirm(false); setScreen("workout");
       };
       const addExToActiveWorkout=(exId)=>{
         const def=allExercises.find(e=>e.id===exId); if(!def) return;
         if(activeWorkout?.exercises.some(e=>e.id===exId)) return;
-        const iMode=activeWorkout.intensityMode||"building", weight=computeWeightForEx(exId,def,iMode);
-        const refEx=activeWorkout.exercises[0]; const sets=refEx?.sets||3, reps=refEx?.reps||10;
+        const weight=computeWeightForEx(exId,def);
+        const refEx=activeWorkout.exercises[0]; const sets=refEx?.sets||5, reps=refEx?.reps||5;
         const newExObj={id:exId,name:def.name,category:def.category,weight,unit:def.unit,sets,reps,increment:def.increment,bigIncrement:getBigInc(def),equipmentType:def.equipmentType||"machine",barbellWeight:def.barbellWeight||null};
         setActiveWorkout(p=>{ if(p.exercises.some(e=>e.id===exId)) return p; return {...p,exercises:[...p.exercises,newExObj],setRepsMap:{...p.setRepsMap,[exId]:Array(sets).fill(reps)}}; });
         setMidWorkoutAddedExIds(p=>[...p,exId]); setWorkoutAddModal(false); showToast(def.name+" added!");
@@ -904,7 +680,8 @@
         const w={...activeWorkout,exercises:exercisesWithSetData,completed:true};
         await addWorkoutRecord(w);
         const capturedAdds=[...midWorkoutAddedExIds];
-        setSummaryData({ templateLabel:w.templateLabel,templateId:w.templateId,date:w.date,midWorkoutAddedExIds:capturedAdds, exercises:exercisesWithSetData.map(ex=>{ const last=getLastForExercise(ex.id); const improved=last?(ex.equipmentType==="assisted"?ex.weight<last.exercise.weight:ex.weight>last.exercise.weight):false; return {...ex,completedSets:Array.from({length:ex.sets},(_,i)=>!!cs[`${ex.id}_${i}`]).filter(Boolean).length,totalSets:ex.sets,improved,matchedGoals:liftGoals.filter(g=>g.exId===ex.id&&(ex.equipmentType==="assisted"?ex.weight<=g.targetWeight:ex.weight>=g.targetWeight))}; }) });
+        setSummaryData({ templateLabel:w.templateLabel,templateId:w.templateId,date:w.date,midWorkoutAddedExIds:capturedAdds,
+          exercises:exercisesWithSetData.map(ex=>{ const last=getLastForExercise(ex.id); const improved=last?(ex.equipmentType==="assisted"?ex.weight<last.exercise.weight:ex.weight>last.exercise.weight):false; return {...ex,completedSets:Array.from({length:ex.sets},(_,i)=>!!cs[`${ex.id}_${i}`]).filter(Boolean).length,totalSets:ex.sets,improved,matchedGoals:liftGoals.filter(g=>g.exId===ex.id&&(ex.equipmentType==="assisted"?ex.weight<=g.targetWeight:ex.weight>=g.targetWeight))}; }) });
         clearInterval(restIntervalRef.current); setRestTimer(null);
         setActiveWorkout(null); setActiveTmpl(null); setExtraExIds([]); setRemovedExIds([]); setPreviewOrder(null); setMidWorkoutAddedExIds([]); setDeferredExIds([]); setCancelConfirm(false); setScreen("summary");
       };
@@ -947,7 +724,7 @@
       const swapExercise=(oldExId,newExId)=>{
         const newDef=allExercises.find(e=>e.id===newExId); if(!newDef) return;
         const oldEx=activeWorkout.exercises.find(e=>e.id===oldExId);
-        const newExObj={id:newExId,name:newDef.name,category:newDef.category,weight:computeWeightForEx(newExId,newDef,activeWorkout.intensityMode||"building"),unit:newDef.unit,sets:oldEx.sets,reps:oldEx.reps,increment:newDef.increment,bigIncrement:getBigInc(newDef),equipmentType:newDef.equipmentType||"machine",barbellWeight:newDef.barbellWeight||null};
+        const newExObj={id:newExId,name:newDef.name,category:newDef.category,weight:computeWeightForEx(newExId,newDef),unit:newDef.unit,sets:oldEx.sets,reps:oldEx.reps,increment:newDef.increment,bigIncrement:getBigInc(newDef),equipmentType:newDef.equipmentType||"machine",barbellWeight:newDef.barbellWeight||null};
         setActiveWorkout(p=>({...p,exercises:p.exercises.map(e=>e.id===oldExId?newExObj:e),setRepsMap:{...p.setRepsMap,[newExId]:p.setRepsMap[oldExId]||Array(oldEx.sets).fill(oldEx.reps)}}));
         setCompletedSets(p=>{ const n={...p}; Array.from({length:oldEx.sets},(_,i)=>{ if(n[`${oldExId}_${i}`]) n[`${newExId}_${i}`]=true; delete n[`${oldExId}_${i}`]; }); return n; });
         setPerSetData(p=>{ const n={...p}; Array.from({length:oldEx.sets},(_,i)=>{ if(n[`${oldExId}_${i}`]) n[`${newExId}_${i}`]=n[`${oldExId}_${i}`]; delete n[`${oldExId}_${i}`]; }); return n; });
@@ -1163,14 +940,11 @@
         const moveEx=(idx,dir)=>{ const arr=[...allIds],ni=idx+dir; if(ni<0||ni>=arr.length) return; [arr[idx],arr[ni]]=[arr[ni],arr[idx]]; setPreviewOrder(arr); };
         return (
           <div className="app screen">{renderModal()}{Toast}
-            <div className="header">
-              <div className="logo">IRON<span>FORM</span></div>
-              <span className="tag tag-forest">{tmpl.emoji} {tmpl.label}</span>
-            </div>
+            <div className="header"><div className="logo">IRON<span>FORM</span></div><span className="tag tag-forest">{tmpl.emoji} {tmpl.label}</span></div>
             <div className="content">
               <BackBtn onClick={()=>{setActiveTmpl(null);setExtraExIds([]);setRemovedExIds([]);setPreviewOrder(null);setScreen("home");}} label="Home"/>
               <div className="padded" style={{paddingTop:0}}>
-                <IntensityModePicker value={intensityMode} onChange={setIntensityMode} sets={previewSets} onSetsChange={setPreviewSets} reps={previewReps} onRepsChange={setPreviewReps}/>
+                <IntensityModePicker value={intensityMode} onChange={setIntensityMode} sets={previewSets} onSetsChange={setPreviewSets} reps={previewReps} onRepsChange={setPreviewReps} onRestChange={setRestTimerDuration}/>
                 <div className="card" style={{marginBottom:14}}>
                   <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
                     <span className="label" style={{marginBottom:0}}>Rest Between Sets</span>
@@ -1184,7 +958,7 @@
                 <span className="label">Exercises — {allIds.length}</span>
                 {allIds.map((exId,idx)=>{
                   const def=allExercises.find(e=>e.id===exId); if(!def) return null;
-                  const weight=computeWeightForEx(exId,def,intensityMode);
+                  const weight=computeWeightForEx(exId,def);
                   const isExtra=extraExIds.includes(exId)||(profile?.templateExtras?.[tmpl.id]||[]).includes(exId);
                   return (
                     <div key={exId} className="card" style={{marginBottom:6,padding:"10px 12px"}}>
@@ -1196,7 +970,6 @@
                           </div>
                           <div className="sans" style={{fontSize:10,fontWeight:600,color:"var(--muted)",marginTop:2,letterSpacing:1}}>
                             {def.unit==="reps"?"Bodyweight":`${weight} ${def.unit}`}
-                            {intensityMode!=="custom"&&INTENSITY_MODES[intensityMode].pct&&getEffective1RM(oneRepMaxes,workouts,exId)&&<span style={{color:"var(--gold)",marginLeft:6}}>{Math.round(INTENSITY_MODES[intensityMode].pct*100)}% 1RM</span>}
                           </div>
                         </div>
                         <div style={{display:"flex",gap:4,alignItems:"center",flexShrink:0,marginLeft:8}}>
@@ -1227,7 +1000,7 @@
             <div className="padded" style={{paddingTop:0}}>
               <div className="slab" style={{fontSize:24,fontWeight:600,color:"var(--navy)",marginBottom:4}}>Build Your Workout</div>
               <p className="sans" style={{color:"var(--muted)",fontSize:12,marginBottom:18,lineHeight:1.6}}>Pick your exercises, then go.</p>
-              <IntensityModePicker value={intensityMode} onChange={setIntensityMode} sets={previewSets} onSetsChange={setPreviewSets} reps={previewReps} onRepsChange={setPreviewReps}/>
+              <IntensityModePicker value={intensityMode} onChange={setIntensityMode} sets={previewSets} onSetsChange={setPreviewSets} reps={previewReps} onRepsChange={setPreviewReps} onRestChange={setRestTimerDuration}/>
               {customExIds.length>0&&(
                 <div className="card" style={{marginBottom:14}}>
                   <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:10}}>
@@ -1281,7 +1054,6 @@
             )}
             {workoutAddModal&&<MidWorkoutAddModal allExercises={allExercises} activeWorkout={activeWorkout} onAdd={addExToActiveWorkout} onClose={()=>setWorkoutAddModal(false)}/>}
 
-            {/* Progress Band */}
             <div className="workout-band">
               <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8}}>
                 <span className="sans" style={{fontSize:9,fontWeight:700,letterSpacing:3,color:"rgba(245,240,232,0.55)",textTransform:"uppercase"}}>{activeWorkout.templateLabel} · {currentExIdx+1}/{exercises.length}</span>
@@ -1302,11 +1074,9 @@
               </div>
             </div>
 
-            {/* Exercise Card */}
             <div style={{borderTop:"4px solid var(--rust)",position:"relative"}}>
               <div style={{position:"absolute",top:0,left:0,right:0,height:"3px",background:"var(--gold)",marginTop:"4px",zIndex:1}}/>
               <div className="padded" style={{paddingTop:20,paddingBottom:8}}>
-                {/* Equipment badge */}
                 <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:6}}>
                   <div style={{flex:1}}>
                     <div style={{display:"flex",gap:6,alignItems:"center",marginBottom:4,flexWrap:"wrap"}}>
@@ -1317,9 +1087,7 @@
                     <div className="display" style={{fontSize:22,letterSpacing:1,color:"var(--navy)",lineHeight:1.1}}>{ex.name}</div>
                     <div className="sans" style={{fontSize:9,fontWeight:700,color:"var(--muted)",letterSpacing:2,marginTop:4,textTransform:"uppercase"}}>{ex.sets} sets</div>
                   </div>
-                  <div style={{display:"flex",gap:4}}>
-                    <button onClick={()=>{setInlineGoal(ex.id);setInlineGoalVal("");}} style={{background:"var(--cream2)",border:"1px solid var(--rule2)",padding:"5px 8px",color:"var(--muted)",cursor:"pointer",fontSize:12}}>🎯</button>
-                  </div>
+                  <button onClick={()=>{setInlineGoal(ex.id);setInlineGoalVal("");}} style={{background:"var(--cream2)",border:"1px solid var(--rule2)",padding:"5px 8px",color:"var(--muted)",cursor:"pointer",fontSize:12}}>🎯</button>
                 </div>
 
                 {inlineGoal===ex.id&&(
@@ -1339,7 +1107,6 @@
                 )}
               </div>
 
-              {/* Weight Adjuster */}
               <div style={{background:"var(--cream2)",borderTop:"1px solid var(--rule)",borderBottom:"1px solid var(--rule)",padding:"14px 20px"}}>
                 <div style={{display:"flex",alignItems:"stretch",gap:0,justifyContent:"center",marginBottom:6}}>
                   <button onClick={()=>adjustWeightGlobal(ex.id,-0.25)} style={{width:42,background:"var(--cream)",border:"1px solid var(--rule2)",color:"var(--muted)",cursor:"pointer",fontSize:9,fontFamily:"'Josefin Sans',sans-serif",fontWeight:700,letterSpacing:0.5,display:"flex",alignItems:"center",justifyContent:"center"}}>−.25</button>
@@ -1355,7 +1122,6 @@
                 <div className="sans" style={{fontSize:7,fontWeight:600,letterSpacing:2,color:"var(--muted)",textAlign:"center",marginTop:4,textTransform:"uppercase"}}>Base weight · completed sets unchanged</div>
               </div>
 
-              {/* Sets */}
               <div className="padded" style={{paddingBottom:6}}>
                 <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8}}>
                   <span className="label" style={{marginBottom:0,fontSize:8}}>Sets — tap to complete</span>
@@ -1368,7 +1134,6 @@
                     return (
                       <div key={i} style={{display:"flex",alignItems:"center",gap:5,padding:"6px 8px",background:d?"rgba(45,90,61,0.06)":"transparent",border:d?"1px solid rgba(45,90,61,0.3)":"1px solid var(--rule)"}}>
                         <div className={`set-stamp${d?" done":""}`} onClick={()=>toggleSet(ex.id,i)}>{d?"✓":`S${i+1}`}</div>
-                        {/* Weight adj */}
                         {ex.unit!=="secs"&&<div style={{display:"flex",flexDirection:"column",flex:1}}>
                           <div style={{display:"flex",alignItems:"stretch",gap:0}}>
                             <button onClick={()=>adjustSetWeight(ex.id,i,-bigInc)} style={{width:24,height:34,background:"var(--cream)",border:"1px solid var(--rule2)",color:"var(--rust)",cursor:"pointer",fontSize:13,display:"flex",alignItems:"center",justifyContent:"center"}}>−</button>
@@ -1380,7 +1145,6 @@
                           </div>
                           {isBarbell&&perSide!==null&&<div className="sans" style={{fontSize:7,fontWeight:700,color:"var(--gold)",letterSpacing:1,textAlign:"center",marginTop:2}}>{perSide.toFixed(2).replace(/\.?0+$/,"")} /side</div>}
                         </div>}
-                        {/* Reps adj */}
                         <div style={{display:"flex",alignItems:"center",gap:3}}>
                           <button onClick={()=>adjustSetReps(ex.id,i,-1)} style={{width:24,height:34,background:"var(--cream)",border:"1px solid var(--rule2)",color:"var(--ink)",cursor:"pointer",fontSize:13,display:"flex",alignItems:"center",justifyContent:"center"}}>−</button>
                           <div style={{textAlign:"center",minWidth:30}}>
@@ -1397,7 +1161,6 @@
                 <input className="input-dashed" placeholder="Notes..." value={noteFor[ex.id]||""} onChange={e=>setNoteFor(p=>({...p,[ex.id]:e.target.value}))}/>
               </div>
 
-              {/* Action Footer */}
               <div style={{padding:"10px 20px 20px",display:"grid",gridTemplateColumns:currentExIdx>0?"1fr 1fr":"1fr",gap:8}}>
                 {currentExIdx>0&&<button className="btn-outline" style={{width:"100%",textAlign:"center",display:"flex",alignItems:"center",justifyContent:"center",margin:0,padding:"12px"}} onClick={()=>setCurrentExIdx(i=>i-1)}>← Prev</button>}
                 {!isLast?(
@@ -1608,26 +1371,26 @@
                                   </div>
                                 ):(
                                   <>
-                                <div style={{display:"flex",justifyContent:"space-between",fontSize:13,marginBottom:hsd?4:0,alignItems:"center"}}>
-                                  {isEN?(
-                                    <div style={{display:"flex",gap:6,flex:1,alignItems:"center"}}>
-                                      <input className="input" style={{flex:1,padding:"5px 8px",fontSize:13}} value={editingExName.value} autoFocus onChange={e=>setEditingExName(p=>({...p,value:e.target.value}))} onKeyDown={e=>{ if(e.key==="Enter"){const u={...w,exercises:w.exercises.map((x,xi)=>xi===ei?{...x,name:editingExName.value}:x)};updateWorkoutRecord(u);setEditingExName(null);showToast("Name updated!");} if(e.key==="Escape") setEditingExName(null); }}/>
-                                      <button onClick={()=>{const u={...w,exercises:w.exercises.map((x,xi)=>xi===ei?{...x,name:editingExName.value}:x)};updateWorkoutRecord(u);setEditingExName(null);showToast("Name updated!");}} style={{background:"var(--forest)",border:"none",borderBottom:"2px solid #1a3a25",padding:"5px 10px",color:"var(--cream)",fontFamily:"'Josefin Sans',sans-serif",fontSize:8,fontWeight:700,letterSpacing:2,cursor:"pointer",textTransform:"uppercase"}}>✓</button>
-                                      <button onClick={()=>setEditingExName(null)} className="btn-ghost" style={{fontSize:16,color:"var(--muted)"}}>×</button>
+                                    <div style={{display:"flex",justifyContent:"space-between",fontSize:13,marginBottom:hsd?4:0,alignItems:"center"}}>
+                                      {isEN?(
+                                        <div style={{display:"flex",gap:6,flex:1,alignItems:"center"}}>
+                                          <input className="input" style={{flex:1,padding:"5px 8px",fontSize:13}} value={editingExName.value} autoFocus onChange={e=>setEditingExName(p=>({...p,value:e.target.value}))} onKeyDown={e=>{ if(e.key==="Enter"){const u={...w,exercises:w.exercises.map((x,xi)=>xi===ei?{...x,name:editingExName.value}:x)};updateWorkoutRecord(u);setEditingExName(null);showToast("Name updated!");} if(e.key==="Escape") setEditingExName(null); }}/>
+                                          <button onClick={()=>{const u={...w,exercises:w.exercises.map((x,xi)=>xi===ei?{...x,name:editingExName.value}:x)};updateWorkoutRecord(u);setEditingExName(null);showToast("Name updated!");}} style={{background:"var(--forest)",border:"none",borderBottom:"2px solid #1a3a25",padding:"5px 10px",color:"var(--cream)",fontFamily:"'Josefin Sans',sans-serif",fontSize:8,fontWeight:700,letterSpacing:2,cursor:"pointer",textTransform:"uppercase"}}>✓</button>
+                                          <button onClick={()=>setEditingExName(null)} className="btn-ghost" style={{fontSize:16,color:"var(--muted)"}}>×</button>
+                                        </div>
+                                      ):(
+                                        <span style={{color:"var(--navy)",display:"flex",alignItems:"center",gap:6,cursor:"pointer"}} onClick={()=>setEditingExName({wKey,exIdx:ei,value:ex.name})}>
+                                          <span className="slab" style={{fontWeight:500}}>{ex.name}</span>
+                                          <span className="sans" style={{fontSize:8,color:"var(--rule2)"}}>✎</span>
+                                          {hasNote&&<span style={{fontSize:11,cursor:"pointer"}} onClick={e=>{e.stopPropagation();setExpandedExNote(p=>({...p,[noteKey]:!p[noteKey]}));}}>💬</span>}
+                                          {ex.skipped&&<span className="tag tag-rust" style={{fontSize:6,letterSpacing:1}}>SKIPPED</span>}
+                                        </span>
+                                      )}
+                                      {!isEN&&!hsd&&<span className="sans" style={{fontSize:11,fontWeight:700,color:"var(--rust)"}}>{ex.unit==="reps"?`BW × ${ex.reps}`:`${ex.weight}${ex.unit} × ${ex.reps}`}{ex.sets>1?` × ${ex.sets}s`:""}</span>}
+                                      {!isEN&&<button onClick={()=>setDeleteExConfirm({wKey,exId:ex.id})} className="btn-ghost" style={{fontSize:16,color:"var(--rule2)",marginLeft:4,flexShrink:0}}>×</button>}
                                     </div>
-                                  ):(
-                                    <span style={{color:"var(--navy)",display:"flex",alignItems:"center",gap:6,cursor:"pointer"}} onClick={()=>setEditingExName({wKey,exIdx:ei,value:ex.name})}>
-                                      <span className="slab" style={{fontWeight:500}}>{ex.name}</span>
-                                      <span className="sans" style={{fontSize:8,color:"var(--rule2)"}}>✎</span>
-                                      {hasNote&&<span style={{fontSize:11,cursor:"pointer"}} onClick={e=>{e.stopPropagation();setExpandedExNote(p=>({...p,[noteKey]:!p[noteKey]}));}}>💬</span>}
-                                      {ex.skipped&&<span className="tag tag-rust" style={{fontSize:6,letterSpacing:1}}>SKIPPED</span>}
-                                    </span>
-                                  )}
-                                  {!isEN&&!hsd&&<span className="sans" style={{fontSize:11,fontWeight:700,color:"var(--rust)"}}>{ex.unit==="reps"?`BW × ${ex.reps}`:`${ex.weight}${ex.unit} × ${ex.reps}`}{ex.sets>1?` × ${ex.sets}s`:""}</span>}
-                                  {!isEN&&<button onClick={()=>setDeleteExConfirm({wKey,exId:ex.id})} className="btn-ghost" style={{fontSize:16,color:"var(--rule2)",marginLeft:4,flexShrink:0}}>×</button>}
-                                </div>
-                                {hsd&&!isEN&&<div style={{display:"flex",gap:4,flexWrap:"wrap",marginTop:4}}>{ex.setData.map((sd,si)=><span key={si} className="tag tag-rust" style={{fontSize:7}}>S{si+1}: {ex.unit==="secs"?`${sd.reps}s`:`${sd.weight}${ex.unit!=="reps"?ex.unit:""} × ${sd.reps}`}</span>)}</div>}
-                              </>
+                                    {hsd&&!isEN&&<div style={{display:"flex",gap:4,flexWrap:"wrap",marginTop:4}}>{ex.setData.map((sd,si)=><span key={si} className="tag tag-rust" style={{fontSize:7}}>S{si+1}: {ex.unit==="secs"?`${sd.reps}s`:`${sd.weight}${ex.unit!=="reps"?ex.unit:""} × ${sd.reps}`}</span>)}</div>}
+                                  </>
                                 )}
                               </div>
                               {expandedExNote[noteKey]&&hasNote&&<div className="slab" style={{padding:"6px 10px",background:"rgba(184,125,46,0.06)",borderLeft:"2px solid var(--gold)",margin:"4px 0",fontStyle:"italic",fontSize:12,color:"var(--muted)"}}>"{ex.note}"</div>}
@@ -1676,6 +1439,8 @@
               </div>
             </div>
             <div style={{padding:"16px 20px 20px"}}>
+
+              {/* Training Goal */}
               <div className="card" style={{marginBottom:14,overflow:"hidden"}}>
                 <div className="card-header-navy"><span className="sans" style={{fontSize:9,fontWeight:700,letterSpacing:3,color:"rgba(245,240,232,0.6)",textTransform:"uppercase"}}>Default Training Goal</span></div>
                 <div style={{padding:"0 0 4px"}}>
@@ -1690,6 +1455,50 @@
                   ))}
                 </div>
               </div>
+
+              {/* Body Measurements */}
+              <div className="card" style={{marginBottom:14,overflow:"hidden"}}>
+                <div className="card-header" style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+                  <span className="sans" style={{fontSize:9,fontWeight:700,letterSpacing:3,color:"rgba(245,240,232,0.7)",textTransform:"uppercase"}}>Body Measurements</span>
+                  <span className="sans" style={{fontSize:8,fontWeight:600,color:"rgba(245,240,232,0.4)",letterSpacing:1}}>inches</span>
+                </div>
+                <div style={{padding:"12px 14px 10px"}}>
+                  <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,marginBottom:10}}>
+                    <div>
+                      <span className="label">Belly</span>
+                      <input className="input" type="number" step="0.1" placeholder="e.g. 34.5" value={newMeasurement.belly} onChange={e=>setNewMeasurement(p=>({...p,belly:e.target.value}))}/>
+                    </div>
+                    <div>
+                      <span className="label">Arms</span>
+                      <input className="input" type="number" step="0.1" placeholder="e.g. 14.0" value={newMeasurement.arms} onChange={e=>setNewMeasurement(p=>({...p,arms:e.target.value}))}/>
+                    </div>
+                  </div>
+                  <button className="btn-forest" style={{marginTop:0,fontSize:10,padding:"11px 24px"}} onClick={async()=>{
+                    if(!newMeasurement.belly&&!newMeasurement.arms) return;
+                    const m={date:new Date().toISOString(),belly:newMeasurement.belly?Number(newMeasurement.belly):null,arms:newMeasurement.arms?Number(newMeasurement.arms):null};
+                    await doAddMeasurement(m);
+                    setNewMeasurement({belly:"",arms:""});
+                    showToast("Measurements logged!");
+                  }}>Log Measurements</button>
+                </div>
+                {measurements.length>0&&(
+                  <div style={{borderTop:"1px solid var(--rule)"}}>
+                    {measurements.slice(0,8).map((m,i)=>(
+                      <div key={m._id||i} style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"9px 14px",borderBottom:"1px solid var(--rule)"}}>
+                        <span className="sans" style={{fontSize:10,fontWeight:700,color:"var(--muted)",letterSpacing:1}}>
+                          {new Date(m.date).toLocaleDateString("en-US",{month:"short",day:"numeric",year:"numeric"})}
+                        </span>
+                        <div style={{display:"flex",gap:16}}>
+                          {m.belly!=null&&<span className="sans" style={{fontSize:11,fontWeight:700,color:"var(--navy)"}}><span style={{fontSize:8,color:"var(--muted)",letterSpacing:1,textTransform:"uppercase",marginRight:4}}>Belly</span>{m.belly}"</span>}
+                          {m.arms!=null&&<span className="sans" style={{fontSize:11,fontWeight:700,color:"var(--navy)"}}><span style={{fontSize:8,color:"var(--muted)",letterSpacing:1,textTransform:"uppercase",marginRight:4}}>Arms</span>{m.arms}"</span>}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              {/* Custom Exercises */}
               <div className="card" style={{marginBottom:14,overflow:"hidden"}}>
                 <div className="card-header" style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
                   <span className="sans" style={{fontSize:9,fontWeight:700,letterSpacing:3,color:"rgba(245,240,232,0.7)",textTransform:"uppercase"}}>Custom Exercises ({customExs.length})</span>
@@ -1703,6 +1512,8 @@
                   ))}
                 </div>
               </div>
+
+              {/* 1RMs */}
               <div className="card" style={{marginBottom:14,overflow:"hidden"}}>
                 <div className="card-header-navy" style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
                   <span className="sans" style={{fontSize:9,fontWeight:700,letterSpacing:3,color:"rgba(245,240,232,0.6)",textTransform:"uppercase"}}>One-Rep Maxes</span>
@@ -1730,6 +1541,7 @@
                   {editing1RMs&&<div style={{padding:"10px 14px 4px"}}><button className="btn" style={{marginTop:0}} onClick={async()=>{for(const [id,val] of Object.entries(draft1RMs)){if(val&&!isNaN(Number(val))&&Number(val)>0) await doSave1RM(id,Number(val));}setEditing1RMs(false);showToast("1RMs saved!");}}>Save 1RMs</button></div>}
                 </div>
               </div>
+
               <button className="btn-outline" style={{width:"100%",marginBottom:10,textAlign:"center",display:"block"}} onClick={()=>setScreen("exercise_db")}>📋 Exercise Database ›</button>
               <button className="btn-danger" style={{width:"100%",marginTop:6,textAlign:"center",display:"block",padding:"13px"}} onClick={handleSignOut}>Sign Out</button>
             </div>
@@ -1802,7 +1614,7 @@
 
       // ── Home ───────────────────────────────────────────────────────────────
       const tiles=[
-        ...WORKOUT_TEMPLATES.map(tmpl=>{ const last=[...workouts].reverse().find(w=>w.templateLabel===tmpl.label), days=last?Math.floor((Date.now()-new Date(last.date))/86400000):null; return {id:tmpl.id,emoji:tmpl.emoji,label:tmpl.label,sub:days!==null?(days===0?"Today":`${days}d ago`):"Never done",topColor:tmpl.topColor,onClick:()=>{setActiveTmpl(tmpl);setExtraExIds([]);setRemovedExIds([]);setPreviewOrder(null);const sr=GOAL_SETS[profile?.goal||"hypertrophy"];setPreviewSets(sr.sets);setPreviewReps(sr.reps);setScreen("preset_preview");}}; }),
+        ...WORKOUT_TEMPLATES.map(tmpl=>{ const last=[...workouts].reverse().find(w=>w.templateLabel===tmpl.label), days=last?Math.floor((Date.now()-new Date(last.date))/86400000):null; return {id:tmpl.id,emoji:tmpl.emoji,label:tmpl.label,sub:days!==null?(days===0?"Today":`${days}d ago`):"Never done",topColor:tmpl.topColor,onClick:()=>{ setActiveTmpl(tmpl); setExtraExIds([]); setRemovedExIds([]); setPreviewOrder(null); const mode=INTENSITY_MODES["iron"]; setPreviewSets(mode.sets); setPreviewReps(mode.reps); setRestTimerDuration(mode.restDuration); setScreen("preset_preview"); }}; }),
         {id:"custom",emoji:"⚡",label:"Custom",sub:"Build your own",topColor:"var(--gold)",onClick:()=>{setCustomExIds([]);setCustomGoal("hypertrophy");setScreen("custom_builder");}},
       ];
       const lastWorkout=workouts[workouts.length-1], daysSinceLast=lastWorkout?Math.floor((Date.now()-new Date(lastWorkout.date))/86400000):null;
@@ -1815,7 +1627,6 @@
             <div className="logo">IRON<span>FORM</span></div>
             {authUser.photoURL&&<img src={authUser.photoURL} alt="" style={{width:30,height:30,border:"2px solid var(--gold)",cursor:"pointer",opacity:0.9}} onClick={()=>setScreen("profile")}/>}
           </div>
-          {/* Hero Stats Band */}
           <div style={{background:"var(--navy)",borderBottom:"4px solid var(--rust)",padding:"18px 20px 20px",position:"relative"}}>
             <div style={{position:"absolute",bottom:0,left:0,right:0,height:"3px",background:"var(--gold)",marginBottom:"-7px"}}/>
             <div className="sans" style={{fontSize:9,fontWeight:700,letterSpacing:4,color:"var(--gold2)",textTransform:"uppercase",marginBottom:4}}>{greeting}</div>
