@@ -1,9 +1,9 @@
-# IRONFORM — Handoff v12
+# IRONFORM — Handoff v13
 
 ## App Overview
 Single-file PWA. React (UMD/Babel, no build step), Firebase Auth + Firestore. Mobile-first (iOS home screen PWA). Deployed by replacing the hosted `.html` file.
 
-**Current version:** 2.9.0  
+**Current version:** 2.9.1  
 **Firebase project:** `trainerdata-c5e64` — credentials hardcoded. Keep private.
 
 ---
@@ -34,9 +34,11 @@ Also: `custom_builder`, `goals`, `history`, `profile`, `exercise_db`
 | `restTimerDuration` | Default 60s; adjustable in 15s increments on preset preview |
 | `builtinOverrides` | `{ [exId]: {...} }` from `profile.builtinExOverrides` |
 | `isFinishingRef` | `useRef(false)` — guards double-call of `finishWorkoutWithState` |
+| `dumbbellModal` | `bool` — controls Push/Pull bottom sheet on home screen |
 
 ### Key Functions
 - **`computeWeightForEx(exId, def, iModeKey)`** — 1RM×pct → history progression → default. Single path used everywhere.
+- **`computeWeightForExDB(exId, def)`** — calls `computeWeightForEx`, divides by 3, rounds to nearest 5, floors at 5. Used only for dumbbell workouts.
 - **`getEffective1RM`** — fresh stored (≤15d) → Epley → expired stored
 - **`calcEpley1RM`** — best `weight × (1 + reps/30)` across history; skips `ex.skipped === true`
 - **`safeProgressWeight(current, goal, weeksSince, unit)`** — per-week cap; units: `lbs:10, reps:2, secs:15`
@@ -46,6 +48,7 @@ Also: `custom_builder`, `goals`, `history`, `profile`, `exercise_db`
 - **`addExToActiveWorkout`** — two chained functional updaters; second navigates to new exercise
 - **`removeSet(exId, si)`** — re-indexes `completedSets` and `perSetData`; hidden when 1 set remains
 - **`swapExercise`** — migrates `completedSets`/`perSetData` key prefixes `oldExId_N` → `newExId_N`
+- **`launchDumbbellWorkout(tmplId)`** — fixed 3×10, 60s rest, no core injection, no preset preview. Uses `computeWeightForExDB` for all weights. Sets `intensityMode:"grind"` for history label consistency.
 
 ### Firebase Collections
 `users/{uid}` — profile, templateExtras, builtinExOverrides  
@@ -61,19 +64,47 @@ Also: `custom_builder`, `goals`, `history`, `profile`, `exercise_db`
 ---
 
 ## Exercise System
-- 43 built-ins across 7 categories + custom exercises in Firestore
+- 51 built-ins across 7 categories + custom exercises in Firestore
 - `allExercises` = `BUILTIN_EXERCISES` + `builtinOverrides` + `customExs` (merged at render)
 - Equipment types: `barbell`, `dumbbell`, `cable`, `assisted`, `machine`, `bodyweight`
 - `bigIncrement`: barbell/assisted → 2.5; dumbbell/cable → 5; machine/bodyweight → `ex.increment`
 - **Assisted logic is inverted** — lower weight = PR/progress. Applied in `computeWeightForEx`, `finishWorkoutWithState`, summary, and goal achievement checks.
 - **`unit:"secs"`** — used by Plank. Hides weight adjuster in set row, labels counter "secs", stores duration in the `reps` field. Excluded from volume calc. `safeProgressWeight` caps at 15s/week.
-- **`CORE_EX_IDS`** — 7 core exercise IDs; one is randomly injected into every built-in workout at launch (not shown on preset preview — known limitation).
+- **`CORE_EX_IDS`** — 7 core exercise IDs; one is randomly injected into every built-in workout at launch (not shown on preset preview — known limitation). Not injected into dumbbell workouts.
 
 ### Built-in Exercises of Note
 - **Plank** — Core, bodyweight, `unit:"secs"`, default 30s
 - **Pull-Up** — Back, bodyweight, reps
 - **Pull-Up (Assisted)** — Back, assisted, lbs (inverted logic)
 - **Incline Press** — Chest, barbell (formerly "Incline Dumbbell Press")
+
+### Dumbbell-Only Exercises (added v2.9.1)
+These are flagged `equipmentType:"dumbbell"` and only appear in dumbbell templates. They are visible in the exercise DB.
+
+| ID | Name |
+|---|---|
+| `db_chest_press` | DB Chest Press |
+| `db_incline_press` | DB Incline Press |
+| `db_fly` | DB Fly |
+| `db_tricep_kick` | DB Tricep Kickback |
+| `db_pullover` | DB Pullover |
+| `db_bent_row` | DB Bent-Over Row |
+| `db_single_arm_row` | DB Single Arm Row |
+| `db_concentration` | DB Concentration Curl |
+
+Reused existing dumbbell exercises: `lateral_raise`, `oh_db_press`, `hammer_curl`, `assisted_dip`.
+
+---
+
+## Workout Templates
+Regular templates (appear as home tiles, get core injection):
+- `push` — Push Day
+- `pull` — Pull Day
+- `legs` — Leg Day
+
+Dumbbell templates (flagged `dumbbell:true` — excluded from home tiles, excluded from core injection, launched via bottom sheet only):
+- `db_push` — Dumbbell Push: `db_chest_press`, `db_incline_press`, `db_fly`, `lateral_raise`, `oh_db_press`, `db_tricep_kick`, `assisted_dip`
+- `db_pull` — Dumbbell Pull: `db_pullover`, `db_bent_row`, `db_single_arm_row`, `db_concentration`, `hammer_curl`
 
 ---
 
@@ -84,6 +115,8 @@ Also: `custom_builder`, `goals`, `history`, `profile`, `exercise_db`
 | Building | 75% | 3 | 10 |
 | Pushing | 90% | 2 | 2 |
 | Custom | — | user | user |
+
+Dumbbell workouts bypass intensity mode entirely (fixed 3×10, 60s rest). Stored as `intensityMode:"grind"` in workout record.
 
 ---
 
@@ -97,6 +130,7 @@ Also: `custom_builder`, `goals`, `history`, `profile`, `exercise_db`
 - **Pre-workout extras → post-workout prompt** — `launchWorkout` seeds `midWorkoutAddedExIds` with extras not already in `templateExtras`, so the "Keep these?" prompt fires for preview-screen additions too.
 - **1RM UI** on Profile covers Bench, Squat, Lat Pull Down only. All others via inline 🎯 + Epley.
 - **Goal progress for assisted exercises** — uses inverted pct: `goal.targetWeight / current` instead of `current / goal.targetWeight`.
+- **Dumbbell template `dumbbell:true` flag** — used to exclude from home tile loop and core injection. Don't remove it.
 
 ---
 
