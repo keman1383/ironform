@@ -246,6 +246,15 @@
       {id:"cable_crunch",     name:"Cable Crunch",                     category:"Core",      unit:"lbs", defaultWeight:40,     increment:5,   equipmentType:"cable"},
       {id:"plank",            name:"Plank",                            category:"Core",      unit:"secs",defaultWeight:30,     increment:5,   equipmentType:"bodyweight"},
       {id:"decline_situp",    name:"Decline Sit-Up",                   category:"Core",      unit:"reps",defaultWeight:0,      increment:1,   equipmentType:"bodyweight"},
+      // ── Dumbbell-only variants ──────────────────────────────────────────────
+      {id:"db_chest_press",   name:"DB Chest Press",                   category:"Chest",     unit:"lbs", defaultWeight:40,     increment:5,   equipmentType:"dumbbell"},
+      {id:"db_incline_press", name:"DB Incline Press",                  category:"Chest",     unit:"lbs", defaultWeight:30,     increment:5,   equipmentType:"dumbbell"},
+      {id:"db_fly",           name:"DB Fly",                            category:"Chest",     unit:"lbs", defaultWeight:10,     increment:5,   equipmentType:"dumbbell"},
+      {id:"db_tricep_kick",   name:"DB Tricep Kickback",                category:"Arms",      unit:"lbs", defaultWeight:10,     increment:5,   equipmentType:"dumbbell"},
+      {id:"db_pullover",      name:"DB Pullover",                       category:"Back",      unit:"lbs", defaultWeight:35,     increment:5,   equipmentType:"dumbbell"},
+      {id:"db_bent_row",      name:"DB Bent-Over Row",                  category:"Back",      unit:"lbs", defaultWeight:30,     increment:5,   equipmentType:"dumbbell"},
+      {id:"db_single_arm_row",name:"DB Single Arm Row",                 category:"Back",      unit:"lbs", defaultWeight:15,     increment:5,   equipmentType:"dumbbell"},
+      {id:"db_concentration", name:"DB Concentration Curl",             category:"Arms",      unit:"lbs", defaultWeight:10,     increment:5,   equipmentType:"dumbbell"},
     ];
 
     const CATEGORIES = ["Chest","Back","Legs","Shoulders","Arms","Core","Cardio","Other"];
@@ -263,6 +272,8 @@
     const WORKOUT_TEMPLATES = [
       {id:"push",label:"Push Day",emoji:"💪",topColor:"var(--forest)",exercises:["bench","incline_db_press","cable_fly","lateral_raise","oh_db_press","tricep_rope","assisted_dip"]},
       {id:"pull",label:"Pull Day",emoji:"🏋️",topColor:"var(--forest)",exercises:["lat_pulldown","seated_cable_row","single_arm_row","preacher_curl","rope_hammer_curl"]},
+      {id:"db_push",label:"Dumbbell Push",emoji:"💪",topColor:"var(--gold)",exercises:["db_chest_press","db_incline_press","db_fly","lateral_raise","oh_db_press","db_tricep_kick","assisted_dip"],dumbbell:true},
+      {id:"db_pull",label:"Dumbbell Pull",emoji:"🏋️",topColor:"var(--gold)",exercises:["db_pullover","db_bent_row","db_single_arm_row","db_concentration","hammer_curl"],dumbbell:true},
       {id:"legs",label:"Leg Day", emoji:"🦵",topColor:"var(--forest)",exercises:["squat","rdl","leg_press","calf_raise","glute_drive","hip_adduction","leg_curl"]},
     ];
     const CORE_EX_IDS = ["cable_ab_twist","hanging_leg_lift","crunch_machine","cable_crunch","plank","decline_situp"];
@@ -556,6 +567,7 @@
       const restIntervalRef=useRef(null);
 
       const [modal,setModal]=useState(null);
+      const [dumbbellModal,setDumbbellModal]=useState(false);
       const [newEx,setNewEx]=useState({name:"",category:"Chest",unit:"lbs",defaultWeight:45,increment:5,equipmentType:"machine",barbellWeight:45});
       const [newLiftGoal,setNewLiftGoal]=useState({exId:"",targetWeight:""});
       const [editing1RMs,setEditing1RMs]=useState(false);
@@ -646,7 +658,7 @@
       const launchWorkout=(tmpl,extras,removed,sets,reps,orderedIds,iMode)=>{
         isFinishingRef.current=false;
         const baseIds=orderedIds?[...orderedIds]:[...tmpl.exercises,...extras].filter(id=>!removed.includes(id));
-        if(tmpl.id!=="custom"){ const coreOptions=CORE_EX_IDS.filter(id=>!baseIds.includes(id)); if(coreOptions.length>0){ const pick=coreOptions[Math.floor(Math.random()*coreOptions.length)]; baseIds.push(pick); } }
+        if(tmpl.id!=="custom"&&!tmpl.dumbbell){ const coreOptions=CORE_EX_IDS.filter(id=>!baseIds.includes(id)); if(coreOptions.length>0){ const pick=coreOptions[Math.floor(Math.random()*coreOptions.length)]; baseIds.push(pick); } }
         const exercises=buildExerciseList(baseIds,sets,reps);
         const setRepsMap={}; exercises.forEach(ex=>{ setRepsMap[ex.id]=Array(sets).fill(reps); });
         setActiveWorkout({date:new Date().toISOString(),exercises,completed:false,templateLabel:tmpl.label,templateId:tmpl.id,setRepsMap,intensityMode:iMode||"iron"});
@@ -662,6 +674,26 @@
         setActiveWorkout({date:new Date().toISOString(),exercises,completed:false,templateLabel:"Custom",templateId:"custom",setRepsMap,intensityMode});
         setCurrentExIdx(0); setCompletedSets({}); setPerSetData({}); setNoteFor({}); setSummaryData(null);
         setMidWorkoutAddedExIds([]); setDeferredExIds([]); setSkippedExIds(new Set()); setCancelConfirm(false); setScreen("workout");
+      };
+      const computeWeightForExDB=(exId,def)=>{
+        const base=computeWeightForEx(exId,def);
+        return Math.max(Math.round(base/3/5)*5,5);
+      };
+      const launchDumbbellWorkout=(tmplId)=>{
+        isFinishingRef.current=false;
+        const tmpl=WORKOUT_TEMPLATES.find(t=>t.id===tmplId);
+        const sets=3,reps=10;
+        const exercises=tmpl.exercises.map(exId=>{
+          const def=allExercises.find(e=>e.id===exId); if(!def) return null;
+          const weight=computeWeightForExDB(exId,def);
+          return {id:exId,name:def.name,category:def.category,weight,unit:def.unit,sets,reps,increment:def.increment,bigIncrement:getBigInc(def),equipmentType:def.equipmentType||"dumbbell",barbellWeight:null};
+        }).filter(Boolean);
+        const setRepsMap={}; exercises.forEach(ex=>{ setRepsMap[ex.id]=Array(sets).fill(reps); });
+        setActiveWorkout({date:new Date().toISOString(),exercises,completed:false,templateLabel:tmpl.label,templateId:tmpl.id,setRepsMap,intensityMode:"grind"});
+        setCurrentExIdx(0); setCompletedSets({}); setPerSetData({}); setNoteFor({}); setSummaryData(null);
+        setMidWorkoutAddedExIds([]); setDeferredExIds([]); setSkippedExIds(new Set()); setCancelConfirm(false);
+        setRestTimerDuration(60);
+        setScreen("workout");
       };
       const addExToActiveWorkout=(exId)=>{
         const def=allExercises.find(e=>e.id===exId); if(!def) return;
@@ -1614,8 +1646,8 @@
 
       // ── Home ───────────────────────────────────────────────────────────────
       const tiles=[
-        ...WORKOUT_TEMPLATES.map(tmpl=>{ const last=[...workouts].reverse().find(w=>w.templateLabel===tmpl.label), days=last?Math.floor((Date.now()-new Date(last.date))/86400000):null; return {id:tmpl.id,emoji:tmpl.emoji,label:tmpl.label,sub:days!==null?(days===0?"Today":`${days}d ago`):"Never done",topColor:tmpl.topColor,onClick:()=>{ setActiveTmpl(tmpl); setExtraExIds([]); setRemovedExIds([]); setPreviewOrder(null); const mode=INTENSITY_MODES["iron"]; setPreviewSets(mode.sets); setPreviewReps(mode.reps); setRestTimerDuration(mode.restDuration); setScreen("preset_preview"); }}; }),
-        {id:"custom",emoji:"⚡",label:"Custom",sub:"Build your own",topColor:"var(--gold)",onClick:()=>{setCustomExIds([]);setCustomGoal("hypertrophy");setScreen("custom_builder");}},
+        ...WORKOUT_TEMPLATES.filter(t=>!t.dumbbell).map(tmpl=>{ const last=[...workouts].reverse().find(w=>w.templateLabel===tmpl.label), days=last?Math.floor((Date.now()-new Date(last.date))/86400000):null; return {id:tmpl.id,emoji:tmpl.emoji,label:tmpl.label,sub:days!==null?(days===0?"Today":`${days}d ago`):"Never done",topColor:tmpl.topColor,onClick:()=>{ setActiveTmpl(tmpl); setExtraExIds([]); setRemovedExIds([]); setPreviewOrder(null); const mode=INTENSITY_MODES["iron"]; setPreviewSets(mode.sets); setPreviewReps(mode.reps); setRestTimerDuration(mode.restDuration); setScreen("preset_preview"); }}; }),
+        {id:"custom",emoji:"🏋️",label:"Dumbbell",sub:"Push or Pull",topColor:"var(--gold)",onClick:()=>setDumbbellModal(true)},
       ];
       const lastWorkout=workouts[workouts.length-1], daysSinceLast=lastWorkout?Math.floor((Date.now()-new Date(lastWorkout.date))/86400000):null;
       const streak=(()=>{ if(!workouts.length) return 0; let s=0; const dates=new Set(workouts.map(w=>new Date(w.date).toDateString())); const d=new Date(); d.setHours(0,0,0,0); while(dates.has(d.toDateString())){s++;d.setDate(d.getDate()-1);} return s; })();
@@ -1623,6 +1655,19 @@
 
       return (
         <div className="app screen">{renderModal()}{Toast}
+          {dumbbellModal&&(
+            <div style={{position:"fixed",inset:0,background:"rgba(26,21,16,0.7)",zIndex:200,display:"flex",alignItems:"flex-end"}} onClick={()=>setDumbbellModal(false)}>
+              <div style={{background:"var(--cream)",width:"100%",padding:"28px 24px 40px",borderTop:"4px solid var(--gold)"}} onClick={e=>e.stopPropagation()}>
+                <div className="sans" style={{fontSize:9,fontWeight:700,letterSpacing:4,color:"var(--gold)",textTransform:"uppercase",marginBottom:4}}>Dumbbell Day</div>
+                <div className="slab" style={{fontSize:18,color:"var(--navy)",marginBottom:20}}>Which split?</div>
+                <div style={{display:"flex",flexDirection:"column",gap:10}}>
+                  <button className="btn" onClick={()=>{setDumbbellModal(false);launchDumbbellWorkout("db_push");}}>💪 Dumbbell Push</button>
+                  <button className="btn" style={{background:"var(--navy)"}} onClick={()=>{setDumbbellModal(false);launchDumbbellWorkout("db_pull");}}>🏋️ Dumbbell Pull</button>
+                  <button className="btn-ghost" style={{color:"var(--muted)",marginTop:4}} onClick={()=>setDumbbellModal(false)}>Cancel</button>
+                </div>
+              </div>
+            </div>
+          )}
           <div className="header">
             <div className="logo">IRON<span>FORM</span></div>
             {authUser.photoURL&&<img src={authUser.photoURL} alt="" style={{width:30,height:30,border:"2px solid var(--gold)",cursor:"pointer",opacity:0.9}} onClick={()=>setScreen("profile")}/>}
