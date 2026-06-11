@@ -1,9 +1,9 @@
-# IRONFORM — Handoff v13
+# IRONFORM — Handoff v14
 
 ## App Overview
 Single-file PWA. React (UMD/Babel, no build step), Firebase Auth + Firestore. Mobile-first (iOS home screen PWA). Deployed by replacing the hosted `.html` file.
 
-**Current version:** 2.9.1  
+**Current version:** 2.10.0  
 **Firebase project:** `trainerdata-c5e64` — credentials hardcoded. Keep private.
 
 ---
@@ -16,7 +16,7 @@ Single-file PWA. React (UMD/Babel, no build step), Firebase Auth + Firestore. Mo
 
 ## Screens
 `home` → `preset_preview` → `workout` → `summary`  
-Also: `custom_builder`, `goals`, `history`, `profile`, `exercise_db`
+Also: `custom_builder`, `goals`, `history`, `profile`, `exercise_db`, `food_log`
 
 ---
 
@@ -35,6 +35,10 @@ Also: `custom_builder`, `goals`, `history`, `profile`, `exercise_db`
 | `builtinOverrides` | `{ [exId]: {...} }` from `profile.builtinExOverrides` |
 | `isFinishingRef` | `useRef(false)` — guards double-call of `finishWorkoutWithState` |
 | `dumbbellModal` | `bool` — controls Push/Pull bottom sheet on home screen |
+| `foodEntries` | Array of food log entries loaded from Firestore, newest first |
+| `foodDesc` | Controlled input — food description |
+| `foodQty` | Controlled input — quantity (number) |
+| `foodUnit` | Controlled input — unit string from dropdown |
 
 ### Key Functions
 - **`computeWeightForEx(exId, def, iModeKey)`** — 1RM×pct → history progression → default. Single path used everywhere.
@@ -49,6 +53,8 @@ Also: `custom_builder`, `goals`, `history`, `profile`, `exercise_db`
 - **`removeSet(exId, si)`** — re-indexes `completedSets` and `perSetData`; hidden when 1 set remains
 - **`swapExercise`** — migrates `completedSets`/`perSetData` key prefixes `oldExId_N` → `newExId_N`
 - **`launchDumbbellWorkout(tmplId)`** — fixed 3×10, 60s rest, no core injection, no preset preview. Uses `computeWeightForExDB` for all weights. Sets `intensityMode:"grind"` for history label consistency.
+- **`addFoodEntryRecord(entry)`** — optimistic local state update + Firestore write to `foodEntries` subcollection
+- **`deleteFoodEntryRecord(entry)`** — removes by `_id` from local state + Firestore
 
 ### Firebase Collections
 `users/{uid}` — profile, templateExtras, builtinExOverrides  
@@ -56,7 +62,10 @@ Also: `custom_builder`, `goals`, `history`, `profile`, `exercise_db`
 `users/{uid}/customExercises/{fid}`  
 `users/{uid}/liftGoals/{id}` — exId, targetWeight  
 `users/{uid}/oneRepMaxes/{exId}` — weight, updatedAt  
+`users/{uid}/foodEntries/{id}` — description, quantity, unit, timestamp (ISO string)  
 `fbDel1RM` is inline via `db.collection(...).doc(exId).delete()`.
+
+> **Note:** `foodEntries` queries by `timestamp desc` — Firestore may require a composite index on first use. Load is wrapped in try/catch and fails silently until the index is created.
 
 ### Components
 `App` (monolithic), `MidWorkoutAddModal` (extracted — fixes iOS keyboard bug), `ModalStrict`, `Modal`, `MiniChart`, `CalendarView`, `Confetti`, `IntensityModePicker`, `Stepper`, `NavBar`
@@ -120,6 +129,23 @@ Dumbbell workouts bypass intensity mode entirely (fixed 3×10, 60s rest). Stored
 
 ---
 
+## Food Log (added v2.10.0)
+Frictionless food logging — no nutrition data, just description + quantity + unit + timestamp.
+
+**Entry point:** Full-width "Food Log" button on home screen, stacked below the 2-column Quick Actions grid.
+
+**`food_log` screen:**
+- Description (text input), Quantity (number input), Unit (dropdown)
+- Unit options: *(blank — "none")*, oz, fl oz, cup, tbsp, tsp, g, kg, lb, slice, piece
+- "Log It" button disabled until desc + qty are filled
+- Recents list below input — last 10 unique entries (deduped by desc+qty+unit). Tap any to re-log instantly with a new timestamp (no confirmation needed).
+
+**History integration:** Third tab "Food Log" added to History screen alongside Workout Log and Calendar. Entries grouped by day, showing description, quantity/unit, and time. × button to delete individual entries.
+
+**Data shape:** `{ description: string, quantity: number, unit: string, timestamp: ISO string, _id: string }`
+
+---
+
 ## Quirks & Gotchas
 - **No build step** — single `<script type="text/babel">`, no imports.
 - **`circleBackToDeferred` must be declared before `skipToNext`** — const arrows don't hoist; breaking this = blank workout screen.
@@ -131,6 +157,7 @@ Dumbbell workouts bypass intensity mode entirely (fixed 3×10, 60s rest). Stored
 - **1RM UI** on Profile covers Bench, Squat, Lat Pull Down only. All others via inline 🎯 + Epley.
 - **Goal progress for assisted exercises** — uses inverted pct: `goal.targetWeight / current` instead of `current / goal.targetWeight`.
 - **Dumbbell template `dumbbell:true` flag** — used to exclude from home tile loop and core injection. Don't remove it.
+- **Food entries Firestore index** — first load after deploy may fail silently until the `timestamp desc` index is created in Firebase console. App handles this gracefully.
 
 ---
 
@@ -153,6 +180,7 @@ Dumbbell workouts bypass intensity mode entirely (fixed 3×10, 60s rest). Stored
 - Cardio exercise type (duration logging)
 - Plateau detection
 - Media Session API for rest timer controls
+- Food log: calorie tracking (field already exists in data model — just hidden in UI for now)
 
 ---
 
