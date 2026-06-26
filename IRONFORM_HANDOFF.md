@@ -1,9 +1,9 @@
-# IRONFORM — Handoff v14
+# IRONFORM — Handoff v15
 
 ## App Overview
 Single-file PWA. React (UMD/Babel, no build step), Firebase Auth + Firestore. Mobile-first (iOS home screen PWA). Deployed by replacing the hosted `.html` file.
 
-**Current version:** 2.10.0  
+**Current version:** 2.10.1  
 **Firebase project:** `trainerdata-c5e64` — credentials hardcoded. Keep private.
 
 ---
@@ -53,6 +53,7 @@ Also: `custom_builder`, `goals`, `history`, `profile`, `exercise_db`, `food_log`
 - **`removeSet(exId, si)`** — re-indexes `completedSets` and `perSetData`; hidden when 1 set remains
 - **`swapExercise`** — migrates `completedSets`/`perSetData` key prefixes `oldExId_N` → `newExId_N`
 - **`launchDumbbellWorkout(tmplId)`** — fixed 3×10, 60s rest, no core injection, no preset preview. Uses `computeWeightForExDB` for all weights. Sets `intensityMode:"grind"` for history label consistency.
+- **`calcPlates(perSide)`** — greedy plate breakdown for a given per-side weight. Uses [45, 25, 10, 5, 2.5]. Returns array of plate values (e.g. `[45, 25, 2.5]`). Float-safe via `Math.round(x * 10) / 10`.
 - **`addFoodEntryRecord(entry)`** — optimistic local state update + Firestore write to `foodEntries` subcollection
 - **`deleteFoodEntryRecord(entry)`** — removes by `_id` from local state + Firestore
 
@@ -147,6 +148,7 @@ Frictionless food logging — no nutrition data, just description + quantity + u
 ---
 
 ## Quirks & Gotchas
+- **Barbell plate breakdown** — both the global weight header and per-set display show per-side weight + plate list (e.g. `27.5 per side · 25, 2.5`). Rendered via IIFE calling `calcPlates`. Assumes 45lb bar; plate options: 45, 25, 10, 5, 2.5.
 - **No build step** — single `<script type="text/babel">`, no imports.
 - **`circleBackToDeferred` must be declared before `skipToNext`** — const arrows don't hoist; breaking this = blank workout screen.
 - **`defaultWeight` is a seed, not a floor** — floor in `computeWeightForEx` is `Math.max(scaled, 5)`.
