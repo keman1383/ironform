@@ -992,8 +992,7 @@
       // ── Preset Preview ─────────────────────────────────────────────────────
       if(screen==="preset_preview"&&activeTmpl){
         const tmpl=activeTmpl, profileExtras=profile?.templateExtras?.[tmpl.id]||[];
-        const baseIds=[...new Set([...tmpl.exercises,...profileExtras,...extraExIds])].filter(id=>!removedExIds.includes(id));
-        const allIds=(previewOrder||baseIds).filter(id=>baseIds.includes(id));
+        const baseIds=[...new Set([...tmpl.exercises,...profileExtras,...extraExIds])].filter(id=>!removedExIds.includes(id)).sort((a,b)=>{const la=allExercises.find(e=>e.id===a)?.category==="Legs"?1:0,lb=allExercises.find(e=>e.id===b)?.category==="Legs"?1:0;return la-lb;});        const allIds=(previewOrder||baseIds).filter(id=>baseIds.includes(id));
         const moveEx=(idx,dir)=>{ const arr=[...allIds],ni=idx+dir; if(ni<0||ni>=arr.length) return; [arr[idx],arr[ni]]=[arr[ni],arr[idx]]; setPreviewOrder(arr); };
         return (
           <div className="app screen">{renderModal()}{Toast}
