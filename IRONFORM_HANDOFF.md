@@ -108,8 +108,8 @@ Reused existing dumbbell exercises: `lateral_raise`, `oh_db_press`, `hammer_curl
 
 ## Workout Templates
 Regular templates (appear as home tiles, get core injection):
-- `push` — Push Day
-- `pull` — Pull Day
+- `push` — Push Day (now includes `squat`, `calf_raise`)
+- `pull` — Pull Day (now includes `leg_curl`, `leg_extension`)
 - `legs` — Leg Day
 
 Dumbbell templates (flagged `dumbbell:true` — excluded from home tiles, excluded from core injection, launched via bottom sheet only):
