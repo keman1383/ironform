@@ -225,6 +225,7 @@
       {id:"pull_up_assisted", name:"Pull-Up (Assisted)",               category:"Back",      unit:"lbs", defaultWeight:100,    increment:2.5, equipmentType:"assisted"},
       {id:"face_pull",        name:"Face Pulls",                       category:"Back",      unit:"lbs", defaultWeight:22.5,   increment:5,   equipmentType:"cable"},
       {id:"squat",            name:"Squat",                            category:"Legs",      unit:"lbs", defaultWeight:115,    increment:2.5, equipmentType:"barbell",   barbellWeight:45},
+      {id:"trap_bar_deadlift",name:"Trap Bar Deadlift",                category:"Legs",      unit:"lbs", defaultWeight:135,    increment:2.5, equipmentType:"barbell",   barbellWeight:45},
       {id:"leg_press",        name:"Leg Press",                        category:"Legs",      unit:"lbs", defaultWeight:220,    increment:10,  equipmentType:"machine"},
       {id:"leg_curl",         name:"Leg Curl",                         category:"Legs",      unit:"lbs", defaultWeight:105,    increment:5,   equipmentType:"machine"},
       {id:"leg_extension",    name:"Leg Extension",                    category:"Legs",      unit:"lbs", defaultWeight:70,     increment:5,   equipmentType:"machine"},
@@ -273,7 +274,7 @@
       grind: { label:"Grind", pct:null, sets:3, reps:10, restDuration:60, color:"var(--rust)",   colorDim:"rgba(196,82,42,0.08)", colorBorder:"rgba(196,82,42,0.35)", description:"3×10 · 60s" },
     };
     const WORKOUT_TEMPLATES = [
-      {id:"push",label:"Push Day",emoji:"💪",topColor:"var(--forest)",exercises:["bench","incline_db_press","cable_fly","lateral_raise","oh_db_press","tricep_rope","assisted_dip","squat","calf_raise"]},
+      {id:"push",label:"Push Day",emoji:"💪",topColor:"var(--forest)",exercises:["bench","incline_db_press","cable_fly","lateral_raise","oh_db_press","tricep_rope","assisted_dip","trap_bar_deadlift","calf_raise"]},
       {id:"pull",label:"Pull Day",emoji:"🏋️",topColor:"var(--forest)",exercises:["lat_pulldown","seated_cable_row","single_arm_row","preacher_curl","rope_hammer_curl","leg_curl","leg_extension"]},
       {id:"db_push",label:"Dumbbell Push",emoji:"💪",topColor:"var(--gold)",exercises:["db_chest_press","db_incline_press","db_fly","lateral_raise","oh_db_press","db_tricep_kick","assisted_dip"],dumbbell:true},
       {id:"db_pull",label:"Dumbbell Pull",emoji:"🏋️",topColor:"var(--gold)",exercises:["db_pullover","db_bent_row","db_single_arm_row","db_concentration","hammer_curl"],dumbbell:true},
