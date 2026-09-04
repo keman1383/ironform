@@ -1034,7 +1034,7 @@
                             <button onClick={()=>moveEx(idx,-1)} disabled={idx===0} style={{background:"var(--cream2)",border:"1px solid var(--rule)",width:22,height:18,fontSize:9,cursor:idx===0?"default":"pointer",color:idx===0?"var(--rule2)":"var(--muted)",display:"flex",alignItems:"center",justifyContent:"center",padding:0}}>▲</button>
                             <button onClick={()=>moveEx(idx,1)} disabled={idx===allIds.length-1} style={{background:"var(--cream2)",border:"1px solid var(--rule)",width:22,height:18,fontSize:9,cursor:idx===allIds.length-1?"default":"pointer",color:idx===allIds.length-1?"var(--rule2)":"var(--muted)",display:"flex",alignItems:"center",justifyContent:"center",padding:0}}>▼</button>
                           </div>
-                          <button onClick={()=>{ if(extraExIds.includes(exId)) setExtraExIds(p=>p.filter(id=>id!==exId)); else setRemovedExIds(p=>[...p,exId]); if(previewOrder) setPreviewOrder(p=>p.filter(id=>id!==exId)); }} className="btn-ghost" style={{color:"var(--rust)",fontSize:20}}>×</button>
+                                                    <button onClick={()=>{ if(extraExIds.includes(exId)) setExtraExIds(p=>p.filter(id=>id!==exId)); else setRemovedExIds(p=>[...p,exId]); if(previewOrder) setPreviewOrder(p=>p.filter(id=>id!==exId)); const savedExtras=profile?.templateExtras?.[tmpl.id]||[]; if(savedExtras.includes(exId)){ saveProfile({...profile,templateExtras:{...profile.templateExtras,[tmpl.id]:savedExtras.filter(id=>id!==exId)}}); showToast("Removed from "+tmpl.label+" defaults"); } }} className="btn-ghost" style={{color:"var(--rust)",fontSize:20}}>×</button>
                         </div>
                       </div>
                     </div>
