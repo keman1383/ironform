@@ -1,9 +1,9 @@
-# IRONFORM — Handoff v15
+# IRONFORM — Handoff v16
 
 ## App Overview
 Single-file PWA. React (UMD/Babel, no build step), Firebase Auth + Firestore. Mobile-first (iOS home screen PWA). Deployed by replacing the hosted `.html` file.
 
-**Current version:** 2.10.1  
+**Current version:** 2.11.1  
 **Firebase project:** `trainerdata-c5e64` — credentials hardcoded. Keep private.
 
 ---
@@ -39,6 +39,7 @@ Also: `custom_builder`, `goals`, `history`, `profile`, `exercise_db`, `food_log`
 | `foodDesc` | Controlled input — food description |
 | `foodQty` | Controlled input — quantity (number) |
 | `foodUnit` | Controlled input — unit string from dropdown |
+| `progressEx` | Selected exercise ID on History → Progress tab. Empty string falls back to the first exercise with history. |
 
 ### Key Functions
 - **`computeWeightForEx(exId, def, iModeKey)`** — 1RM×pct → history progression → default. Single path used everywhere.
@@ -142,8 +143,18 @@ Frictionless food logging — no nutrition data, just description + quantity + u
 - Recents list below input — last 10 unique entries (deduped by desc+qty+unit). Tap any to re-log instantly with a new timestamp (no confirmation needed).
 
 **History integration:** Third tab "Food Log" added to History screen alongside Workout Log and Calendar. Entries grouped by day, showing description, quantity/unit, and time. × button to delete individual entries.
-
 **Data shape:** `{ description: string, quantity: number, unit: string, timestamp: ISO string, _id: string }`
+
+---
+
+## Progress Tab (added v2.11.0)
+Fourth History tab ("Progress"), between Calendar and Food Log. Charts logged weight over time for one exercise at a time.
+
+- Exercise `<select>` grouped by category via `<optgroup>`. Only lists exercises with at least one logged workout.
+- **Excluded for now:** `equipmentType:"assisted"` (inverted logic) and `unit:"secs"` (Plank).
+- Stats row: Latest, Best (max), Change (last − first; green if ≥ 0, rust if negative). Session count below the chart.
+- Data source: `getLiftHistory(exId)` (the `ex.weight` stored per workout). No schema change, no new Firestore reads.
+- Reuses `MiniChart` without a target line. `targetWeight` is now optional in `MiniChart`: the dashed line and label render only when it is non-null, and it is excluded from the min/max scale when absent.
 
 ---
 
@@ -159,6 +170,7 @@ Frictionless food logging — no nutrition data, just description + quantity + u
 - **1RM UI** on Profile covers Bench, Squat, Lat Pull Down only. All others via inline 🎯 + Epley.
 - **Goal progress for assisted exercises** — uses inverted pct: `goal.targetWeight / current` instead of `current / goal.targetWeight`.
 - **Dumbbell template `dumbbell:true` flag** — used to exclude from home tile loop and core injection. Don't remove it.
+- **Progress chart x-axis** — `MiniChart` extends the x-axis 30 days past today, so the plotted line fills the left portion of the chart. This is inherited from the goal-card design.
 - **Food entries Firestore index** — first load after deploy may fail silently until the `timestamp desc` index is created in Firebase console. App handles this gracefully.
 
 ---
@@ -176,6 +188,7 @@ Frictionless food logging — no nutrition data, just description + quantity + u
 ---
 
 ## Future Features
+- Progress tab: support assisted exercises (inverted: lower = progress) and Plank (secs)
 - Show random ab exercise on preset preview
 - Create new exercise mid-workout ("Create & Add" path in `MidWorkoutAddModal`)
 - Goal achievement → prompt for new goal
