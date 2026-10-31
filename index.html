@@ -394,14 +394,14 @@
     function MiniChart({history, targetWeight, width=300, height=110}) {
       if (history.length<1) return <div style={{color:"var(--muted)",fontSize:12,textAlign:"center",padding:20,fontFamily:"'Josefin Sans',sans-serif"}}>No data yet</div>;
       const t0=new Date(history[0].date).getTime(), tEnd=Date.now()+30*86400000;
-      const allW=[...history.map(h=>h.weight),targetWeight];
+      const allW=[...history.map(h=>h.weight),...(targetWeight!=null?[targetWeight]:[])];
       const minW=Math.min(...allW)*0.95, maxW=Math.max(...allW)*1.02;
       const tx=t=>(t-t0)/(tEnd-t0)*width, ty=w=>height-(w-minW)/(maxW-minW)*height;
       const pts=history.map(h=>`${tx(new Date(h.date).getTime())},${ty(h.weight)}`).join(" ");
       return (
         <svg viewBox={`0 0 ${width} ${height}`} style={{width:"100%",height,overflow:"visible"}}>
-          <line x1="0" y1={ty(targetWeight)} x2={width} y2={ty(targetWeight)} stroke="var(--forest)" strokeWidth="1" strokeDasharray="4,3" opacity="0.5"/>
-          <text x={width-2} y={ty(targetWeight)-4} textAnchor="end" fontSize="9" fill="var(--forest)" fontFamily="Josefin Sans,sans-serif" fontWeight="700">{targetWeight} lbs</text>
+          {targetWeight!=null&&<><line x1="0" y1={ty(targetWeight)} x2={width} y2={ty(targetWeight)} stroke="var(--forest)" strokeWidth="1" strokeDasharray="4,3" opacity="0.5"/>
+          <text x={width-2} y={ty(targetWeight)-4} textAnchor="end" fontSize="9" fill="var(--forest)" fontFamily="Josefin Sans,sans-serif" fontWeight="700">{targetWeight} lbs</text></>}
           {history.length>1&&<polyline points={pts} fill="none" stroke="var(--rust)" strokeWidth="2" strokeLinejoin="round" strokeLinecap="round"/>}
           <line x1={tx(Date.now())} y1="0" x2={tx(Date.now())} y2={height} stroke="var(--muted)" strokeWidth="0.5" opacity="0.4"/>
           {history.map((h,i)=>{ const cx=tx(new Date(h.date).getTime()),cy=ty(h.weight); return <circle key={i} cx={cx} cy={cy} r="3" fill="var(--rust)" stroke="var(--cream)" strokeWidth="1.5"/>; })}
@@ -594,6 +594,7 @@
       const [expandedWorkouts,setExpandedWorkouts]=useState({});
       const [expandedExNote,setExpandedExNote]=useState({});
       const [historyTab,setHistoryTab]=useState("log");
+      const [progressEx,setProgressEx]=useState("");
       const [foodEntries,setFoodEntries]=useState([]);
       const [foodDesc,setFoodDesc]=useState("");
       const [foodQty,setFoodQty]=useState("");
@@ -1374,7 +1375,7 @@
           <div className="header"><div className="logo">IRON<span>FORM</span></div><button className="btn-sm" onClick={()=>{setPastDate("");setPastRows([{exId:"",sets:[{weight:"",reps:""}]}]);setModal("logPastWorkout");}}>+ Log Past</button></div>
           <div className="content">
             <div style={{display:"flex",borderBottom:"2px solid var(--rule)",marginBottom:0}}>
-              {[["log","Workout Log"],["calendar","Calendar"],["food","Food Log"]].map(([tab,lbl])=><button key={tab} onClick={()=>setHistoryTab(tab)} className="sans" style={{flex:1,padding:"12px 10px",fontSize:9,fontWeight:700,letterSpacing:3,textTransform:"uppercase",cursor:"pointer",border:"none",borderBottom:historyTab===tab?"2px solid var(--rust)":"2px solid transparent",background:"transparent",color:historyTab===tab?"var(--rust)":"var(--muted)",marginBottom:"-2px"}}>{lbl}</button>)}
+              {[["log","Workout Log"],["calendar","Calendar"],["progress","Progress"],["food","Food Log"]].map(([tab,lbl])=><button key={tab} onClick={()=>setHistoryTab(tab)} className="sans" style={{flex:1,padding:"12px 10px",fontSize:9,fontWeight:700,letterSpacing:3,textTransform:"uppercase",cursor:"pointer",border:"none",borderBottom:historyTab===tab?"2px solid var(--rust)":"2px solid transparent",background:"transparent",color:historyTab===tab?"var(--rust)":"var(--muted)",marginBottom:"-2px"}}>{lbl}</button>)}
             </div>
             <div style={{padding:"16px 20px 20px"}}>
               {historyTab==="calendar"&&(
@@ -1473,6 +1474,33 @@
                   </div>
                 );
               }))}
+              {historyTab==="progress"&&(()=>{
+                const opts=allExercises.filter(e=>e.equipmentType!=="assisted"&&e.unit!=="secs"&&getLiftHistory(e.id).length>0);
+                if(opts.length===0) return (
+                  <div className="card" style={{textAlign:"center",padding:40}}>
+                    <div className="sans" style={{color:"var(--muted)",fontSize:10,fontWeight:700,letterSpacing:2,textTransform:"uppercase"}}>Complete a workout to see progress</div>
+                  </div>
+                );
+                const sel=opts.find(e=>e.id===progressEx)||opts[0];
+                const hist=getLiftHistory(sel.id).filter(h=>h.weight!=null);
+                const cats=[...new Set(opts.map(e=>e.category))];
+                const first=hist.length?hist[0].weight:0, last=hist.length?hist[hist.length-1].weight:0, best=hist.length?Math.max(...hist.map(h=>h.weight)):0;
+                const delta=Math.round((last-first)*10)/10;
+                return (
+                  <div className="card" style={{marginTop:8}}>
+                    <select value={sel.id} onChange={e=>setProgressEx(e.target.value)} className="sans" style={{width:"100%",padding:"10px 8px",fontSize:13,fontWeight:700,color:"var(--navy)",background:"var(--cream)",border:"1px solid var(--rule)",marginBottom:12}}>
+                      {cats.map(c=><optgroup key={c} label={c}>{opts.filter(e=>e.category===c).map(e=><option key={e.id} value={e.id}>{e.name}</option>)}</optgroup>)}
+                    </select>
+                    {hist.length>0&&<div className="sans" style={{display:"flex",justifyContent:"space-between",fontSize:10,fontWeight:600,color:"var(--muted)",marginBottom:10,letterSpacing:0.5}}>
+                      <span>Latest: <span style={{color:"var(--navy)",fontWeight:700}}>{last} {sel.unit}</span></span>
+                      <span>Best: <span style={{color:"var(--gold)",fontWeight:700}}>{best} {sel.unit}</span></span>
+                      <span>Change: <span style={{color:delta>=0?"var(--forest)":"var(--rust)",fontWeight:700}}>{delta>0?"+":""}{delta} {sel.unit}</span></span>
+                    </div>}
+                    <div style={{background:"var(--cream)",border:"1px solid var(--rule)",padding:"10px 8px 6px"}}><MiniChart history={hist}/></div>
+                    <div className="sans" style={{fontSize:9,fontWeight:600,color:"var(--muted)",textAlign:"center",marginTop:8,letterSpacing:1}}>{hist.length} session{hist.length===1?"":"s"}</div>
+                  </div>
+                );
+              })()}
               {historyTab==="food"&&(()=>{
                 if(foodEntries.length===0) return (
                   <div className="card" style={{textAlign:"center",padding:40}}>
